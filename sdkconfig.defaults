@@ -1,0 +1,9 @@
+# Target chip
+CONFIG_IDF_TARGET_ESP32S3=y
+
+# 240 MHz for Goertzel processing and logging
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# Serial logging
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
