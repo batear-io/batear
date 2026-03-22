@@ -44,7 +44,7 @@ If you have a micro drone, a soldering iron, and some free time, we would love y
 
 ## 🛠️ Hardware Wiring (ICS-43434)
 
-| ICS-43434 | T-Display-S3 (ESP32-S3) |
+| ICS-43434 | ESP32-S3 |
 | :--- | :--- |
 | **VDD** | 3.3V |
 | **GND** | GND |
