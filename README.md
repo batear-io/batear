@@ -10,6 +10,16 @@
   <br><br>
   <p><em>"Built for defense, hoping it becomes unnecessary. We believe in a world where no one needs to fear the sky."</em></p>
 </div>
+<br><br>
+
+<div align="center">
+  <a href="https://youtu.be/Pwnvg_p4E5I">
+    <img src="https://img.youtube.com/vi/Pwnvg_p4E5I/0.jpg" alt="Batear Demo Video" width="600">
+  </a>
+  <br><br>
+  <em>▶️ Click to watch the bench test demo</em>
+</div>
+<br>
 
 ---
 
