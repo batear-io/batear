@@ -4,6 +4,7 @@
   <h1>Batear</h1>
   <p><strong>A sub-$15, edge-only acoustic drone detector on ESP32-S3.</strong></p>
 
+  [![Featured on Hackaday](https://img.shields.io/badge/Featured%20on-Hackaday-black?logo=hackaday)](https://hackaday.com/2026/03/23/acoustic-drone-detection-on-the-cheap-with-esp32/)
   [![Stars](https://img.shields.io/github/stars/TN666/batear?style=flat-square)](https://github.com/TN666/batear/stargazers)
   [![License](https://img.shields.io/github/license/TN666/batear?style=flat-square)](https://github.com/TN666/batear/blob/main/LICENSE)
 
