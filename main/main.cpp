@@ -5,7 +5,7 @@
  *
  * Detector mode (CONFIG_BATEAR_ROLE_DETECTOR):
  *   Core 0 │ LoRaTask  — waits on queue, TX encrypted packets via SX1262
- *   Core 1 │ AudioTask — I2S mic + Goertzel detector
+ *   Core 1 │ AudioTask — I2S mic + FFT harmonic detector
  *
  * Gateway mode (CONFIG_BATEAR_ROLE_GATEWAY):
  *   Core 0 │ GatewayTask — LoRa RX + decrypt + OLED + LED

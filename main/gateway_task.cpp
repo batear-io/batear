@@ -72,8 +72,8 @@ static void display_event(const lora_plaintext_t *pt, float rssi, float snr)
     snprintf(line, sizeof(line), "RSSI:%d  SNR:%.1f", (int)rssi, snr);
     oled_print(0, 4, line);
 
-    snprintf(line, sizeof(line), "rms:%udB  freq:%u/6",
-             pt->rms_db, pt->active_freqs);
+    snprintf(line, sizeof(line), "rms:%udB  f0bin:%u",
+             pt->rms_db, pt->f0_bin);
     oled_print(0, 5, line);
 
     snprintf(line, sizeof(line), "seq:%u", pt->seq);
@@ -193,9 +193,9 @@ extern "C" void GatewayTask(void *pvParameters)
         dev->last_seq = pt.seq;
         dev->alarm    = (pt.event_type == 0x01);
 
-        ESP_LOGI(TAG, "dev=0x%02X %s seq=%u freqs=%u rms=%udB RSSI=%.0f SNR=%.1f",
+        ESP_LOGI(TAG, "dev=0x%02X %s seq=%u f0bin=%u rms=%udB RSSI=%.0f SNR=%.1f",
                  pt.device_id, dev->alarm ? "ALARM" : "CLEAR",
-                 pt.seq, pt.active_freqs, pt.rms_db, rssi, snr);
+                 pt.seq, pt.f0_bin, pt.rms_db, rssi, snr);
 
         update_led();
         display_event(&pt, rssi, snr);

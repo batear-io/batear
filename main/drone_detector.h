@@ -24,8 +24,8 @@ typedef enum {
 
 typedef struct {
     DroneEventType type;
-    float          peak_ratio;    /* EMA ratio at the moment of transition   */
-    int            active_freqs;  /* how many Goertzel bins exceeded RATIO_ON */
+    float          peak_ratio;    /* harmonic confidence at the moment of transition */
+    int            f0_bin;        /* fundamental bin index (or harm_ok flag)         */
     float          rms;           /* frame RMS at transition                  */
     uint32_t       timestamp_ms;  /* xTaskGetTickCount() * portTICK_PERIOD_MS */
 } DroneEvent_t;

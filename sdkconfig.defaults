@@ -1,4 +1,4 @@
-# 240 MHz for Goertzel processing and logging
+# 240 MHz for FFT processing and logging
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 
 # Serial logging

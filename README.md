@@ -32,30 +32,31 @@ The same codebase builds as a **Detector** (mic + LoRa TX) or a **Gateway** (LoR
 
 ---
 
-## 🧠 The "Hack": Why Goertzel over FFT?
+## 🧠 How Detection Works: FFT Harmonic Signature
 
-In typical audio processing, the default approach is a Fast Fourier Transform (FFT). However, running a high-resolution FFT is memory-hungry and computationally heavy for a microcontroller. 
+Batear reads audio from an ICS-43434 I2S MEMS microphone at **16 kHz** and runs a **1024-point real FFT** (via ESP-DSP SIMD-accelerated routines) to produce a power spectral density (PSD) with **15.625 Hz/bin** resolution.
 
-Batear takes a different approach. It reads audio from an ICS-43434 I2S MEMS microphone and uses multi-frequency **Goertzel filters** to measure tonal energy specifically at drone rotor harmonics. 
+Multi-rotor drones produce a characteristic acoustic signature: a strong **fundamental frequency** (f₀, tied to motor/propeller RPM) plus clearly visible **harmonics at 2×f₀ and 3×f₀**. Batear exploits this by scanning the PSD for peaks that exhibit this harmonic ladder pattern.
 
-* **Highly Efficient:** The Goertzel algorithm is O(N) per frequency bin. It only calculates the exact frequencies we care about.
-* **Tiny Footprint:** It fits entirely within the ESP32-S3's 512 KB SRAM.
-* **Low Power:** Consumes negligible power — making it practical for battery-powered or solar deployments.
+* **Harmonic Analysis:** For each candidate f₀ (180–2400 Hz), the detector checks whether energy peaks also exist near 2×f₀ and 3×f₀ relative to the noise floor.
+* **Confidence Scoring:** A 0–1 heuristic combining SNR, h2/h3 ratios, and exponential moving average smoothing reduces false alarms from transient sounds.
+* **Hysteresis:** Alarm requires **2 consecutive** positive frames; clearing requires **8 consecutive** negative frames — eliminating flicker.
+* **ESP-DSP Accelerated:** The ESP32-S3's SIMD instructions keep the full FFT + harmonic scan well under 10 ms per frame.
 
-It triggers an alarm when the tonal/broadband energy ratio exceeds a threshold, then transmits an **AES-128-GCM encrypted** alert over LoRa.
+When a drone signature is confirmed, an **AES-128-GCM encrypted** alert is transmitted over LoRa.
 
 ---
 
 ## 🏗️ System Architecture
 
 ```
-┌─────────────────────┐         LoRa 915 MHz         ┌──────────────────────┐
-│    DETECTOR (×N)    │  ────────────────────────────► │      GATEWAY (×1)    │
-│                     │   AES-128-GCM encrypted       │                      │
-│  ICS-43434 mic      │   28-byte packets             │  SSD1306 OLED display│
-│  Goertzel analysis  │                               │  LED alarm indicator │
-│  SX1262 LoRa TX     │                               │  SX1262 LoRa RX      │
-└─────────────────────┘                               └──────────────────────┘
+┌──────────────────────┐        LoRa 915 MHz         ┌──────────────────────┐
+│    DETECTOR (×N)     │ ───────────────────────────► │     GATEWAY (×1)     │
+│                      │  AES-128-GCM encrypted       │                      │
+│  ICS-43434 mic       │  28-byte packets             │  SSD1306 OLED display│
+│  FFT harmonic detect │                              │  LED alarm indicator │
+│  SX1262 LoRa TX      │                              │  SX1262 LoRa RX      │
+└──────────────────────┘                              └──────────────────────┘
    Heltec WiFi LoRa 32 V3                               Heltec WiFi LoRa 32 V3
 ```
 
@@ -241,7 +242,7 @@ AES-128-GCM encrypted, 28 bytes on the wire:
 Plaintext (8 bytes):
 
 ```
-[2B seq] [1B device_id] [1B event_type] [1B active_freqs] [1B rms_db] [2B reserved]
+[2B seq] [1B device_id] [1B event_type] [1B f0_bin] [1B rms_db] [2B reserved]
 ```
 
 - **Sequence counter** prevents replay attacks
@@ -255,20 +256,27 @@ Plaintext (8 bytes):
 When an alarm is active, serial output prints:
 
 ```
-cal: active=N/6 [r0 r1 r2 r3 r4 r5] rms=X.XXXXX
+cal: f0=XXX.X Hz h2=X.XX h3=X.XX snr=XX.X nf=X.XXeXX conf_ema=X.XX rms=X.XXXXX
 ```
 
-Record ratio values with and without a drone present (or play rotor audio through a speaker). Adjust thresholds in `main/audio_task.c`:
+Record these values with and without a drone present (or play rotor audio through a speaker). Key tuning parameters in `main/audio_task.c` and `main/audio_processor.c`:
 
-| Symbol | Default | Description |
-|:---|:---|:---|
-| `SAMPLE_RATE_HZ` | `16000` | Sample rate (Hz) |
-| `FRAME_SAMPLES` | `512` | Samples per analysis frame |
-| `HOP_MS` | `100` | Frame hop interval (ms) |
-| `k_target_hz[]` | `200, 400, 800, 1200, 2400, 4000` | Goertzel target frequencies (Hz) |
-| `FREQ_RATIO_ON` | `0.008` | Alarm-on threshold (tonal/broadband ratio) |
-| `FREQ_RATIO_OFF` | `0.004` | Alarm-off threshold |
-| `RMS_MIN` | `0.001` | Minimum RMS — frames below this are skipped |
+| Symbol | Default | File | Description |
+|:---|:---|:---|:---|
+| `SAMPLE_RATE_HZ` | `16000` | `audio_processor.h` | Sample rate (Hz) |
+| `FRAME_SAMPLES` | `1024` | `audio_processor.h` | FFT size (samples per frame) |
+| `HOP_MS` | `100` | `audio_task.c` | Frame hop interval (ms) |
+| `HARM_F0_MIN_HZ` | `180` | `audio_task.c` | Fundamental search lower bound (Hz) |
+| `HARM_F0_MAX_HZ` | `2400` | `audio_task.c` | Fundamental search upper bound (Hz); 3×f₀ must stay < Nyquist |
+| `CONF_ON` | `0.30` | `audio_task.c` | Smoothed confidence threshold to trigger alarm |
+| `CONF_OFF` | `0.18` | `audio_task.c` | Smoothed confidence threshold to clear alarm |
+| `SUSTAIN_FRAMES_ON` | `2` | `audio_task.c` | Consecutive frames above CONF_ON to trigger |
+| `SUSTAIN_FRAMES_OFF` | `8` | `audio_task.c` | Consecutive frames below CONF_OFF to clear |
+| `RMS_MIN` | `0.0004` | `audio_task.c` | Minimum windowed RMS — frames below this are skipped |
+| `EMA_ALPHA` | `0.25` | `audio_task.c` | Exponential moving average factor for confidence |
+| `AUDIO_PROC_HARM_PEAK_MIN_SNR` | `4.0` | `audio_processor.c` | Minimum f₀ peak SNR vs noise floor |
+| `AUDIO_PROC_HARM_MIN_H2` | `0.07` | `audio_processor.c` | Minimum P(2f₀)/P(f₀) ratio |
+| `AUDIO_PROC_HARM_MIN_H3` | `0.035` | `audio_processor.c` | Minimum P(3f₀)/P(f₀) ratio |
 
 ---
 
@@ -282,17 +290,18 @@ batear/
 ├── sdkconfig.gateway           # gateway role + network
 ├── main/
 │   ├── CMakeLists.txt          # conditional compile by role
-│   ├── Kconfig.projbuild       # role / device ID / network config
+│   ├── Kconfig.projbuild       # role / device ID / network / debug config
 │   ├── main.cpp                # entry point (role switch)
 │   ├── pin_config.h            # board-specific GPIO + hardware traits
 │   ├── drone_detector.h        # shared DroneEvent_t + queue
 │   ├── lora_crypto.h           # AES-128-GCM packet protocol (PSA API)
 │   ├── EspIdfHal.cpp/.h        # RadioLib HAL for ESP-IDF
-│   ├── audio_task.c/.h         # [detector] I2S mic + Goertzel
+│   ├── audio_processor.c/.h    # [detector] ESP-DSP FFT + PSD + harmonic analysis
+│   ├── audio_task.c/.h         # [detector] I2S mic + detection state machine
 │   ├── lora_task.cpp/.h        # [detector] LoRa TX
 │   ├── gateway_task.cpp/.h     # [gateway]  LoRa RX + OLED + LED
 │   ├── oled.c/.h               # [gateway]  SSD1306 128x64 driver
-│   └── idf_component.yml       # RadioLib dependency
+│   └── idf_component.yml       # RadioLib + ESP-DSP dependencies
 ```
 
 ---

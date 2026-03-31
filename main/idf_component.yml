@@ -4,6 +4,9 @@
 dependencies:
   idf: ">=5.0"
 
+  espressif/esp-dsp:
+    version: ">=1.4.0"
+
   ## RadioLib — SX1262 / LoRa driver (https://github.com/jgromes/RadioLib)
   ## Component registry: https://components.espressif.com/components/jgromes/radiolib
   jgromes/radiolib:

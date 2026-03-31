@@ -59,17 +59,18 @@ batear/
 ├── sdkconfig.gateway
 ├── main/
 │   ├── CMakeLists.txt          # conditional compile by role
-│   ├── Kconfig.projbuild       # role / device ID / network config
+│   ├── Kconfig.projbuild       # role / device ID / network / debug config
 │   ├── main.cpp                # entry point (role switch)
 │   ├── pin_config.h            # board-specific GPIO + hardware traits
 │   ├── drone_detector.h        # shared DroneEvent_t + queue
 │   ├── lora_crypto.h           # AES-128-GCM packet protocol (PSA API)
 │   ├── EspIdfHal.cpp/.h        # RadioLib HAL for ESP-IDF
-│   ├── audio_task.c/.h         # [detector] I2S mic + Goertzel
+│   ├── audio_processor.c/.h    # [detector] ESP-DSP FFT + PSD + harmonic analysis
+│   ├── audio_task.c/.h         # [detector] I2S mic + detection state machine
 │   ├── lora_task.cpp/.h        # [detector] LoRa TX
 │   ├── gateway_task.cpp/.h     # [gateway]  LoRa RX + OLED + LED
 │   ├── oled.c/.h               # [gateway]  SSD1306 128x64 driver
-│   └── idf_component.yml       # RadioLib dependency
+│   └── idf_component.yml       # RadioLib + ESP-DSP dependencies
 ```
 
 ## Pin Map (pin_config.h, Heltec V3)
@@ -94,5 +95,9 @@ batear/
 
 ## Calibration
 
-When alarm is active, serial prints `cal: active=N/6 [...ratios...] rms=...`.
-Adjust `FREQ_RATIO_ON`/`FREQ_RATIO_OFF` and `k_target_hz[]` in `audio_task.c`.
+When alarm is active, serial prints:
+`cal: f0=XXX.X Hz h2=X.XX h3=X.XX snr=XX.X nf=X.XXeXX conf_ema=X.XX rms=X.XXXXX`
+
+Tune detection in `audio_task.c` (`HARM_F0_MIN/MAX_HZ`, `CONF_ON/OFF`, `SUSTAIN_FRAMES_*`, `RMS_MIN`, `EMA_ALPHA`)
+and `audio_processor.c` (`AUDIO_PROC_HARM_PEAK_MIN_SNR`, `AUDIO_PROC_HARM_MIN_H2/H3`).
+Enable `BATEAR_AUDIO_PERF_LOG` in menuconfig for per-frame DSP timing.

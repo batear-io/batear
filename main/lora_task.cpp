@@ -151,8 +151,8 @@ extern "C" void LoRaTask(void *pvParameters)
             continue;
         }
 
-        ESP_LOGI(TAG, "event 0x%02X  active=%d  ratio=%.4f  rms=%.5f  t=%" PRIu32 "ms",
-                 (unsigned)ev.type, ev.active_freqs,
+        ESP_LOGI(TAG, "event 0x%02X  f0bin=%d  conf=%.4f  rms=%.5f  t=%" PRIu32 "ms",
+                 (unsigned)ev.type, ev.f0_bin,
                  ev.peak_ratio, ev.rms, ev.timestamp_ms);
 
         lora_wake();
@@ -161,7 +161,7 @@ extern "C" void LoRaTask(void *pvParameters)
         pt.seq          = s_tx_seq++;
         pt.device_id    = CONFIG_BATEAR_DEVICE_ID;
         pt.event_type   = static_cast<uint8_t>(ev.type);
-        pt.active_freqs = static_cast<uint8_t>(ev.active_freqs);
+        pt.f0_bin       = static_cast<uint8_t>(ev.f0_bin);
         pt.rms_db       = lora_rms_to_db(ev.rms);
 
         lora_packet_t pkt;

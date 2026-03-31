@@ -1,7 +1,7 @@
 set(SRCS "main.cpp" "EspIdfHal.cpp")
 
 if(CONFIG_BATEAR_ROLE_DETECTOR)
-    list(APPEND SRCS "audio_task.c" "lora_task.cpp")
+    list(APPEND SRCS "audio_task.c" "audio_processor.c" "lora_task.cpp")
 endif()
 
 if(CONFIG_BATEAR_ROLE_GATEWAY)
@@ -17,6 +17,7 @@ idf_component_register(
         esp_driver_spi
         esp_driver_gpio
         esp_timer
+        espressif__esp-dsp
         jgromes__radiolib
         mbedtls
 )

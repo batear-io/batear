@@ -1,14 +1,14 @@
 /*
- * audio_task.c — I2S + Goertzel acoustic drone detector (Core 1)
- *
- * DSP logic is unchanged from the original monolithic main.c.
- * The only addition is xQueueSend() calls on alarm state transitions.
+ * audio_task.c — I2S + ESP-DSP FFT harmonic drone detector (Core 1)
  */
 
 #include "audio_task.h"
+#include "audio_processor.h"
 #include "drone_detector.h"
 #include "pin_config.h"
 
+#include <inttypes.h>
+#include <limits.h>
 #include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -16,102 +16,57 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "driver/i2s_std.h"
+#include "sdkconfig.h"
 
 static const char *TAG = "audio";
 
-/* =========================================================================
- * Hardware — pin numbers sourced from pin_config.h, cast to gpio_num_t
- * ====================================================================== */
 #define I2S_MIC_BCLK_GPIO   ((gpio_num_t)PIN_I2S_BCLK)
 #define I2S_MIC_WS_GPIO     ((gpio_num_t)PIN_I2S_WS)
 #define I2S_MIC_DIN_GPIO    ((gpio_num_t)PIN_I2S_DIN)
 
-/* =========================================================================
- * DSP parameters  (calibrate per drone type / deployment environment)
- * ====================================================================== */
-#define SAMPLE_RATE_HZ      16000
-#define FRAME_SAMPLES       512
+#define SAMPLE_RATE_HZ      AUDIO_PROC_SAMPLE_RATE_HZ
+#define FRAME_SAMPLES       AUDIO_PROC_FFT_SIZE
 #define HOP_MS              100
 
-#define GOERTZEL_FREQS      6
-static const float k_target_hz[GOERTZEL_FREQS] = {
-    200.f, 400.f, 800.f, 1200.f, 2400.f, 4000.f
-};
+/* Fundamental search band (Hz); 3×f0 must stay below Nyquist (8 kHz). */
+#define HARM_F0_MIN_HZ      180.f
+#define HARM_F0_MAX_HZ      2400.f
 
-#define FREQ_RATIO_ON       0.008f   /* EMA ratio above which a freq is "active"  */
-#define FREQ_RATIO_OFF      0.004f   /* EMA ratio below which a freq is "quiet"   */
-#define EMA_ALPHA           0.25f    /* 0.3 = fast response, lower = smoother     */
-#define FREQS_NEEDED        1        /* bins that must be active to trigger alarm  */
-#define SUSTAIN_FRAMES_ON   2        /* consecutive active frames before ALARM     */
-#define SUSTAIN_FRAMES_OFF  8        /* consecutive quiet  frames before CLEAR     */
-#define RMS_MIN             0.001f   /* skip frames below this noise floor         */
+#define EMA_ALPHA           0.25f
+#define CONF_ON             0.30f
+#define CONF_OFF            0.18f
+#define SUSTAIN_FRAMES_ON   2
+#define SUSTAIN_FRAMES_OFF  8
+#define RMS_MIN             0.0004f
 
-/* =========================================================================
- * Module-private state  (all lives on Core 1; no mutex required)
- * ====================================================================== */
-static float             s_window[FRAME_SAMPLES];
-static float             s_audio[FRAME_SAMPLES];
+static float __attribute__((aligned(16))) s_fft_work[2 * FRAME_SAMPLES];
+static int32_t __attribute__((aligned(16))) s_raw[FRAME_SAMPLES];
+/* Stereo DMA: L,R pairs — ESP32-S3 Philips RX (see i2s_microphone_init). */
+static int32_t __attribute__((aligned(16))) s_stereo[FRAME_SAMPLES * 2];
+
 static i2s_chan_handle_t s_rx = NULL;
-
-typedef struct {
-    float coeff;
-    float cos_omega;
-    float sin_omega;
-} goertzel_coeff_t;
-
-static goertzel_coeff_t s_goertzel[GOERTZEL_FREQS];
-static float            s_freq_ema[GOERTZEL_FREQS];
-
-/* =========================================================================
- * DSP helpers  (identical to original main.c)
- * ====================================================================== */
-
-static void init_hanning(void)
-{
-    const int n = FRAME_SAMPLES;
-    for (int i = 0; i < n; i++) {
-        s_window[i] = 0.5f * (1.f - cosf(2.f * (float)M_PI * i / (float)(n - 1)));
-    }
-}
-
-static void init_goertzel_coeffs(void)
-{
-    for (int f = 0; f < GOERTZEL_FREQS; f++) {
-        float k = roundf(k_target_hz[f] * FRAME_SAMPLES / (float)SAMPLE_RATE_HZ);
-        if (k < 1.f) k = 1.f;
-        const float omega       = 2.f * (float)M_PI * k / (float)FRAME_SAMPLES;
-        s_goertzel[f].coeff     = 2.f * cosf(omega);
-        s_goertzel[f].cos_omega = cosf(omega);
-        s_goertzel[f].sin_omega = sinf(omega);
-    }
-}
-
-static float goertzel_power(const float *x, int n, const goertzel_coeff_t *gc)
-{
-    float s = 0.f, s_prev = 0.f, s_prev2 = 0.f;
-    for (int i = 0; i < n; i++) {
-        s       = x[i] + gc->coeff * s_prev - s_prev2;
-        s_prev2 = s_prev;
-        s_prev  = s;
-    }
-    const float real = s_prev - s_prev2 * gc->cos_omega;
-    const float imag = s_prev2 * gc->sin_omega;
-    return real * real + imag * imag;
-}
+static float             s_conf_ema = 0.f;
 
 static esp_err_t i2s_microphone_init(void)
 {
-    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
+    /*
+     * ESP32-S3 Philips default slot_mask is BOTH (see i2s_std.h). Using MONO mode
+     * (active_slot=1) with that mask can yield all-zero RX; use STEREO + software
+     * deinterleave — same effective data as legacy ESP32 mono + LEFT.
+     */
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
     chan_cfg.dma_desc_num  = 6;
     chan_cfg.dma_frame_num = 256;
 
     esp_err_t err = i2s_new_channel(&chan_cfg, NULL, &s_rx);
-    if (err != ESP_OK) return err;
+    if (err != ESP_OK) {
+        return err;
+    }
 
     i2s_std_config_t std_cfg = {
         .clk_cfg  = I2S_STD_CLK_DEFAULT_CONFIG(SAMPLE_RATE_HZ),
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT,
-                                                         I2S_SLOT_MODE_MONO),
+                                                         I2S_SLOT_MODE_STEREO),
         .gpio_cfg = {
             .mclk  = I2S_GPIO_UNUSED,
             .bclk  = I2S_MIC_BCLK_GPIO,
@@ -125,7 +80,6 @@ static esp_err_t i2s_microphone_init(void)
             },
         },
     };
-    std_cfg.slot_cfg.slot_mask     = I2S_STD_SLOT_LEFT;
     std_cfg.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_384;
 
     err = i2s_channel_init_std_mode(s_rx, &std_cfg);
@@ -137,35 +91,87 @@ static esp_err_t i2s_microphone_init(void)
     return i2s_channel_enable(s_rx);
 }
 
-static void read_pcm_frame(float *out, int n)
+/**
+ * Block until one full FRAME_SAMPLES mono int32 frame is available.
+ * Accumulates partial reads so FreeRTOS I2S DMA chunking never drops samples.
+ */
+/** First-frame + rare heartbeat so bring-up shows mic activity (not only on ALARM). */
+static float raw_i32_rms_norm(const int32_t *s, int n)
 {
-    static int32_t raw[FRAME_SAMPLES];
-    size_t         bytes_read = 0;
-    const size_t   need       = (size_t)n * sizeof(int32_t);
-
-    while (i2s_channel_read(s_rx, raw, need, &bytes_read, pdMS_TO_TICKS(1000)) == ESP_OK) {
-        if (bytes_read >= need) break;
+    if (n <= 0 || s == NULL) {
+        return 0.f;
     }
-
+    double acc = 0.0;
     for (int i = 0; i < n; i++) {
-        float v  = (float)raw[i] / 2147483648.0f;
-        out[i]   = v * s_window[i];
+        const double v = (double)s[i] / 2147483648.0;
+        acc += v * v;
     }
+    return (float)sqrt(acc / (double)n);
 }
 
-/* =========================================================================
- * Helper: push a DroneEvent_t to the shared queue without blocking.
- *
- * AudioTask must NEVER stall — xQueueSend with timeout=0 drops the event
- * if LoRaTask is mid-transmission and the queue is temporarily full.
- * The queue depth (set in main.cpp) is chosen to absorb normal burst rate.
- * ====================================================================== */
+static void log_pcm_int32_span(const int32_t *s, int n, float raw_rms_norm, const char *note)
+{
+    if (n <= 0 || s == NULL) {
+        return;
+    }
+    int32_t lo = s[0], hi = s[0];
+    for (int i = 1; i < n; i++) {
+        if (s[i] < lo) {
+            lo = s[i];
+        }
+        if (s[i] > hi) {
+            hi = s[i];
+        }
+    }
+    ESP_LOGI(TAG, "mic %s: int32 min=%" PRId32 " max=%" PRId32 " span=%" PRId32 " raw_rms~%.5f",
+             note, lo, hi, (int32_t)(hi - lo), raw_rms_norm);
+}
+
+static bool read_pcm_chunk_bytes(uint8_t *dst, size_t need_bytes)
+{
+    size_t got = 0;
+    while (got < need_bytes) {
+        size_t    chunk = 0;
+        esp_err_t e     = i2s_channel_read(s_rx, dst + got, need_bytes - got, &chunk, pdMS_TO_TICKS(1000));
+        if (e != ESP_OK) {
+            ESP_LOGW(TAG, "I2S read err %s", esp_err_to_name(e));
+            return false;
+        }
+        if (chunk == 0) {
+            continue;
+        }
+        got += chunk;
+    }
+    return true;
+}
+
+/** STEREO Philips: read 2 * n int32 (L,R,…), copy one channel to mono `out`. */
+static bool read_pcm_frame_i32(int32_t *out, int n)
+{
+    if (n != FRAME_SAMPLES) {
+        return false;
+    }
+    const size_t need_bytes = (size_t)n * 2u * sizeof(int32_t);
+    if (!read_pcm_chunk_bytes((uint8_t *)s_stereo, need_bytes)) {
+        return false;
+    }
+#if CONFIG_BATEAR_I2S_MIC_SLOT_RIGHT
+    const unsigned ch = 1u;
+#else
+    const unsigned ch = 0u;
+#endif
+    for (int i = 0; i < n; i++) {
+        out[i] = s_stereo[i * 2 + ch];
+    }
+    return true;
+}
+
 static void push_event(DroneEventType type, float ratio, int active, float rms)
 {
     DroneEvent_t ev = {
         .type         = type,
         .peak_ratio   = ratio,
-        .active_freqs = active,
+        .f0_bin       = active,
         .rms          = rms,
         .timestamp_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS),
     };
@@ -174,51 +180,120 @@ static void push_event(DroneEventType type, float ratio, int active, float rms)
     }
 }
 
-/* =========================================================================
- * AudioTask — entry point, pinned to Core 1 by xTaskCreatePinnedToCore()
- * ====================================================================== */
 void AudioTask(void *pvParameters)
 {
     (void)pvParameters;
 
-    ESP_LOGI(TAG, "AudioTask start (core %d)", xPortGetCoreID());
+    ESP_LOGI(TAG, "AudioTask start (core %d) FFT N=%d", xPortGetCoreID(), FRAME_SAMPLES);
 
-    init_hanning();
-    init_goertzel_coeffs();
-
-    esp_err_t err = i2s_microphone_init();
+    esp_err_t err = audio_processor_init();
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "I2S init failed: %s — suspending", esp_err_to_name(err));
+        ESP_LOGE(TAG, "audio_processor_init failed — suspending");
         vTaskSuspend(NULL);
         return;
     }
-    ESP_LOGI(TAG, "I2S OK — BCLK=%d WS=%d DIN=%d",
+
+    err = i2s_microphone_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "I2S init failed: %s — suspending", esp_err_to_name(err));
+        audio_processor_deinit();
+        vTaskSuspend(NULL);
+        return;
+    }
+    ESP_LOGI(TAG, "I2S OK — port0 STEREO→mono BCLK=%d WS=%d DIN=%d",
              PIN_I2S_BCLK, PIN_I2S_WS, PIN_I2S_DIN);
 
     int  sustain_on      = 0;
     int  sustain_off     = 0;
     bool alarm           = false;
     int  detection_count = 0;
+    bool mic_diag_logged = false;
+    int  frames_total    = 0;
 
     for (;;) {
-        read_pcm_frame(s_audio, FRAME_SAMPLES);
-
-        /* --- RMS energy gate -------------------------------------------- */
-        float sum_sq = 0.f;
-        for (int i = 0; i < FRAME_SAMPLES; i++) {
-            sum_sq += s_audio[i] * s_audio[i];
+        if (!read_pcm_frame_i32(s_raw, FRAME_SAMPLES)) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
         }
-        float rms = sqrtf(sum_sq / (float)FRAME_SAMPLES);
 
-        int   active_freqs = 0;
-        float freq_ratios[GOERTZEL_FREQS];
+        if (!mic_diag_logged) {
+            log_pcm_int32_span(s_raw, FRAME_SAMPLES, raw_i32_rms_norm(s_raw, FRAME_SAMPLES), "first frame");
+            mic_diag_logged = true;
+        }
+
+#if CONFIG_BATEAR_AUDIO_PERF_LOG
+        const int64_t t_psd_start = esp_timer_get_time();
+#endif
+        err = audio_processor_compute_psd(s_fft_work, s_raw, FRAME_SAMPLES);
+#if CONFIG_BATEAR_AUDIO_PERF_LOG
+        const int32_t dt_psd_us = (int32_t)(esp_timer_get_time() - t_psd_start);
+#endif
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "compute_psd: %s", esp_err_to_name(err));
+            vTaskDelay(pdMS_TO_TICKS(HOP_MS));
+            continue;
+        }
+
+        const float *psd = audio_processor_last_psd();
+        const float rms  = audio_processor_last_rms();
+
+        frames_total++;
+        if ((frames_total % 300) == 0) {
+            ESP_LOGI(TAG, "mic heartbeat (~30s): win_rms=%.5f (gate %.4f)", rms, RMS_MIN);
+            if (rms < 1e-6f) {
+                ESP_LOGW(TAG,
+                         "I2S still silent — check ICS-43434 wiring (SCK/WS/SD), 3.3 V, GND, L/R; "
+                         "try menuconfig BATEAR_I2S_MIC_SLOT_RIGHT if L/R is tied to VDD");
+            }
+        }
+
+        HarmonicAnalysisResult hr;
+#if CONFIG_BATEAR_AUDIO_PERF_LOG
+        const int64_t t_harm_start = esp_timer_get_time();
+#endif
+        const bool harm_ok =
+            analyze_harmonics(psd, AUDIO_PROC_PSD_BINS, HARM_F0_MIN_HZ, HARM_F0_MAX_HZ, &hr);
+#if CONFIG_BATEAR_AUDIO_PERF_LOG
+        const int32_t dt_harm_us = (int32_t)(esp_timer_get_time() - t_harm_start);
+        static int      s_perf_n;
+        static int32_t  s_psd_sum, s_harm_sum, s_psd_min = INT32_MAX, s_psd_max, s_harm_min = INT32_MAX,
+            s_harm_max;
+        s_psd_sum += dt_psd_us;
+        s_harm_sum += dt_harm_us;
+        if (dt_psd_us < s_psd_min) {
+            s_psd_min = dt_psd_us;
+        }
+        if (dt_psd_us > s_psd_max) {
+            s_psd_max = dt_psd_us;
+        }
+        if (dt_harm_us < s_harm_min) {
+            s_harm_min = dt_harm_us;
+        }
+        if (dt_harm_us > s_harm_max) {
+            s_harm_max = dt_harm_us;
+        }
+        s_perf_n++;
+        if (s_perf_n >= 100) {
+            ESP_LOGI(TAG,
+                     "perf (100 frames): psd_fft min/avg/max=%" PRId32 "/%" PRId32 "/%" PRId32 " us  "
+                     "harm min/avg/max=%" PRId32 "/%" PRId32 "/%" PRId32 " us  dsp_tot_avg=%" PRId32 " us",
+                     s_psd_min, s_psd_sum / s_perf_n, s_psd_max, s_harm_min, s_harm_sum / s_perf_n, s_harm_max,
+                     (s_psd_sum + s_harm_sum) / s_perf_n);
+            s_perf_n     = 0;
+            s_psd_sum    = 0;
+            s_harm_sum   = 0;
+            s_psd_min    = INT32_MAX;
+            s_psd_max    = 0;
+            s_harm_min   = INT32_MAX;
+            s_harm_max   = 0;
+        }
+#endif
+
+        int   active_metric = 0;
+        float conf_display  = s_conf_ema;
 
         if (rms < RMS_MIN) {
-            /* Too quiet — decay EMA and handle sustain-off while silent */
-            for (int f = 0; f < GOERTZEL_FREQS; f++) {
-                s_freq_ema[f] *= (1.f - EMA_ALPHA);
-                freq_ratios[f] = s_freq_ema[f];
-            }
+            s_conf_ema *= (1.f - EMA_ALPHA);
             if (alarm) {
                 sustain_off++;
                 if (sustain_off >= SUSTAIN_FRAMES_OFF) {
@@ -228,45 +303,37 @@ void AudioTask(void *pvParameters)
                 }
             }
         } else {
-            /* --- Goertzel filter bank ----------------------------------- */
-            const float denom = sum_sq * (float)FRAME_SAMPLES + 1e-12f;
-
-            for (int f = 0; f < GOERTZEL_FREQS; f++) {
-                float r       = goertzel_power(s_audio, FRAME_SAMPLES, &s_goertzel[f]) / denom;
-                s_freq_ema[f] = EMA_ALPHA * r + (1.f - EMA_ALPHA) * s_freq_ema[f];
-                freq_ratios[f] = s_freq_ema[f];
-                if (s_freq_ema[f] > FREQ_RATIO_ON) active_freqs++;
+            if (harm_ok) {
+                s_conf_ema = EMA_ALPHA * hr.confidence + (1.f - EMA_ALPHA) * s_conf_ema;
+            } else {
+                s_conf_ema = EMA_ALPHA * fminf(hr.confidence, 0.15f) + (1.f - EMA_ALPHA) * s_conf_ema;
             }
 
-            /* --- Hysteresis state machine ------------------------------- */
+            active_metric = harm_ok ? 1 : 0;
+
             if (!alarm) {
-                if (active_freqs >= FREQS_NEEDED) {
+                if (harm_ok && s_conf_ema >= CONF_ON) {
                     sustain_on++;
                     sustain_off = 0;
                     if (sustain_on >= SUSTAIN_FRAMES_ON) {
                         alarm = true;
                         detection_count++;
-                        ESP_LOGW(TAG, "ALARM #%d: %d/%d freqs active, rms=%.5f",
-                                 detection_count, active_freqs, GOERTZEL_FREQS, rms);
-                        push_event(DRONE_EVENT_ALARM,
-                                   freq_ratios[0],
-                                   active_freqs, rms);
+                        ESP_LOGW(TAG, "ALARM #%d: f0=%.1f Hz conf=%.2f rms=%.5f",
+                                 detection_count, hr.fundamental_hz, (double)s_conf_ema, rms);
+                        push_event(DRONE_EVENT_ALARM, hr.confidence,
+                                   hr.fundamental_bin > 255 ? 255 : hr.fundamental_bin, rms);
                     }
                 } else {
                     sustain_on = 0;
                 }
             } else {
-                int active_off = 0;
-                for (int f = 0; f < GOERTZEL_FREQS; f++) {
-                    if (freq_ratios[f] > FREQ_RATIO_OFF) active_off++;
-                }
-                if (active_off < FREQS_NEEDED) {
+                if (!harm_ok || s_conf_ema < CONF_OFF) {
                     sustain_off++;
                     sustain_on = 0;
                     if (sustain_off >= SUSTAIN_FRAMES_OFF) {
                         alarm = false;
-                        ESP_LOGI(TAG, "CLEAR (active_freqs=%d)", active_off);
-                        push_event(DRONE_EVENT_CLEAR, freq_ratios[0], active_off, rms);
+                        ESP_LOGI(TAG, "CLEAR (harm_ok=%d conf=%.2f)", harm_ok, (double)s_conf_ema);
+                        push_event(DRONE_EVENT_CLEAR, hr.confidence, active_metric, rms);
                     }
                 } else {
                     sustain_off = 0;
@@ -274,15 +341,13 @@ void AudioTask(void *pvParameters)
             }
         }
 
-        /* --- 1 Hz calibration log (only while alarm active) ------------- */
         static int64_t last_cal_us = 0;
-        const  int64_t now_us      = esp_timer_get_time();
+        const int64_t now_us       = esp_timer_get_time();
         if (alarm && now_us - last_cal_us > 1000000LL) {
-            ESP_LOGI(TAG, "cal: active=%d/%d [%.3f %.3f %.3f %.3f %.3f %.3f] rms=%.5f",
-                     active_freqs, GOERTZEL_FREQS,
-                     freq_ratios[0], freq_ratios[1], freq_ratios[2],
-                     freq_ratios[3], freq_ratios[4], freq_ratios[5],
-                     rms);
+            ESP_LOGI(TAG,
+                     "cal: f0=%.1f Hz h2=%.2f h3=%.2f snr=%.1f nf=%.2e conf_ema=%.2f rms=%.5f",
+                     hr.fundamental_hz, hr.h2_ratio, hr.h3_ratio, hr.snr, hr.noise_floor,
+                     (double)conf_display, rms);
             last_cal_us = now_us;
         }
 

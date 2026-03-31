@@ -8,7 +8,7 @@
  *
  * Plaintext (8 bytes):
  *   [2B seq_counter] [1B device_id] [1B event_type]
- *   [1B active_freqs] [1B rms_db] [2B reserved]
+ *   [1B f0_bin] [1B rms_db] [2B reserved]
  */
 #pragma once
 
@@ -34,7 +34,7 @@ typedef struct __attribute__((packed)) {
     uint16_t seq;
     uint8_t  device_id;
     uint8_t  event_type;
-    uint8_t  active_freqs;
+    uint8_t  f0_bin;
     uint8_t  rms_db;
     uint8_t  reserved[2];
 } lora_plaintext_t;

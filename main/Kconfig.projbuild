@@ -19,6 +19,22 @@ choice BATEAR_ROLE
         bool "Gateway (LoRa RX + OLED + LED)"
 endchoice
 
+config BATEAR_AUDIO_PERF_LOG
+    bool "Log DSP timing (FFT+PSD, harmonics, us min/max/avg every ~10s)"
+    default n
+    depends on BATEAR_ROLE_DETECTOR
+    help
+        Uses esp_timer_get_time() around compute_psd and analyze_harmonics.
+        Disable for production to reduce serial spam.
+
+config BATEAR_I2S_MIC_SLOT_RIGHT
+    bool "I2S mic: take RIGHT channel (ICS-43434 L/R pin to VDD)"
+    default n
+    depends on BATEAR_ROLE_DETECTOR
+    help
+        ICS-43434: L/R to GND = left, L/R to 3.3 V = right.
+        On ESP32-S3, RX uses Philips BOTH slots; we deinterleave L/R in software.
+
 config BATEAR_DEVICE_ID
     int "Device ID (0-255)"
     default 1
