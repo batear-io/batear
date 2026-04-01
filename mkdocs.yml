@@ -1,5 +1,5 @@
 site_name: Batear
-site_url: https://batear.io
+site_url: https://docs.batear.io
 site_description: Ultra-low-cost acoustic drone detection on ESP32-S3 with encrypted LoRa alerting
 site_author: TN666
 repo_url: https://github.com/batear-io/batear

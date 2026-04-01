@@ -38,17 +38,17 @@ The same codebase builds as a **Detector** (mic + LoRa TX) or a **Gateway** (LoR
 
 ## 📖 Documentation
 
-Full documentation is available at **[batear.io](https://batear.io)**.
+Full documentation is available at **[batear.io](https://docs.batear.io)**.
 
 | | |
 |:---|:---|
-| [**Getting Started**](https://batear.io/getting-started/) | Prerequisites and supported boards |
-| [**Hardware**](https://batear.io/hardware/) | Parts list, wiring diagrams, pin map |
-| [**Build & Flash**](https://batear.io/build-flash/) | Compile and flash the firmware |
-| [**Configuration**](https://batear.io/configuration/) | Encryption keys, frequencies, device IDs |
-| [**How It Works**](https://batear.io/how-it-works/) | FFT harmonic detection algorithm |
-| [**Calibration**](https://batear.io/calibration/) | Tuning detection thresholds |
-| [**Adding a Board**](https://batear.io/adding-boards/) | Porting to new hardware |
+| [**Getting Started**](https://docs.batear.io/getting-started/) | Prerequisites and supported boards |
+| [**Hardware**](https://docs.batear.io/hardware/) | Parts list, wiring diagrams, pin map |
+| [**Build & Flash**](https://docs.batear.io/build-flash/) | Compile and flash the firmware |
+| [**Configuration**](https://docs.batear.io/configuration/) | Encryption keys, frequencies, device IDs |
+| [**How It Works**](https://docs.batear.io/how-it-works/) | FFT harmonic detection algorithm |
+| [**Calibration**](https://docs.batear.io/calibration/) | Tuning detection thresholds |
+| [**Adding a Board**](https://docs.batear.io/adding-boards/) | Porting to new hardware |
 
 ---
 
@@ -84,7 +84,7 @@ idf.py -B build_detector -DSDKCONFIG=build_detector/sdkconfig build
 idf.py -B build_detector -DSDKCONFIG=build_detector/sdkconfig -p PORT flash monitor
 ```
 
-See the [full build guide](https://batear.io/build-flash/) for gateway setup and detailed instructions.
+See the [full build guide](https://docs.batear.io/build-flash/) for gateway setup and detailed instructions.
 
 ---
 
