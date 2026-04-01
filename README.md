@@ -8,6 +8,10 @@
   <a href="https://hackaday.com/2026/03/23/acoustic-drone-detection-on-the-cheap-with-esp32/"><img src="https://img.shields.io/badge/Featured%20on-Hackaday-black?logo=hackaday" alt="Featured on Hackaday" style="display:inline-block;"></a><a href="https://github.com/TN666/batear/stargazers"><img src="https://img.shields.io/github/stars/TN666/batear?style=flat-square" alt="Stars" style="display:inline-block;"></a><a href="https://github.com/TN666/batear/blob/main/LICENSE"><img src="https://img.shields.io/github/license/TN666/batear?style=flat-square" alt="License" style="display:inline-block;"></a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml"><img src="https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml/badge.svg" alt="Firmware Build"></a><a href="https://github.com/batear-io/batear/actions/workflows/cppcheck.yml"><img src="https://github.com/batear-io/batear/actions/workflows/cppcheck.yml/badge.svg" alt="Static Analysis"></a><a href="https://github.com/batear-io/batear/actions/workflows/size_report.yml"><img src="https://github.com/batear-io/batear/actions/workflows/size_report.yml/badge.svg" alt="Firmware Size"></a>
+</p>
+
   <br><br>
   <p><em>"Built for defense, hoping it becomes unnecessary. We believe in a world where no one needs to fear the sky."</em></p>
 </div>
