@@ -1,0 +1,24 @@
+name: Static Analysis (Cppcheck)
+
+on:
+  push:
+    branches: [ main, feature/** ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  cppcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+
+      - name: Run Cppcheck
+        run: |
+          cppcheck --enable=all --inline-suppr --error-exitcode=1 \
+          --std=c99 --platform=unix64 \
+          -I main/include -I components/esp-dsp/include \
+          main/ components/
