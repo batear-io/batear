@@ -61,6 +61,7 @@ void audio_processor_deinit(void)
     dsps_fft2r_deinit_fc32();
 }
 
+// cppcheck-suppress unusedFunction
 const float *audio_processor_window(void)
 {
     return s_window;

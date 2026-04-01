@@ -173,7 +173,7 @@ extern "C" void GatewayTask(void *pvParameters)
         }
 
         lora_plaintext_t pt;
-        if (!lora_decrypt(s_net_key, (lora_packet_t *)rx_buf, &pt)) {
+        if (!lora_decrypt(s_net_key, reinterpret_cast<lora_packet_t *>(rx_buf), &pt)) {
             ESP_LOGW(TAG, "decrypt FAILED — wrong key or forged");
             s_reject_count++;
             display_idle();

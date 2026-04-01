@@ -32,11 +32,13 @@ EspIdfHal::EspIdfHal(uint8_t sck, uint8_t miso, uint8_t mosi)
  * Lifecycle — called by RadioLib's Module::init() / ~Module()
  * ====================================================================== */
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::init()
 {
     spiBegin();
 }
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::term()
 {
     spiEnd();
@@ -46,6 +48,7 @@ void EspIdfHal::term()
  * GPIO
  * ====================================================================== */
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::pinMode(uint32_t pin, uint32_t mode)
 {
     gpio_config_t io = {
@@ -58,11 +61,13 @@ void EspIdfHal::pinMode(uint32_t pin, uint32_t mode)
     gpio_config(&io);
 }
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::digitalWrite(uint32_t pin, uint32_t value)
 {
     gpio_set_level(static_cast<gpio_num_t>(pin), value);
 }
 
+// cppcheck-suppress unusedFunction
 uint32_t EspIdfHal::digitalRead(uint32_t pin)
 {
     return static_cast<uint32_t>(gpio_get_level(static_cast<gpio_num_t>(pin)));
@@ -76,6 +81,7 @@ uint32_t EspIdfHal::digitalRead(uint32_t pin)
  * before any gpio_isr_handler_add() calls.
  * ====================================================================== */
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::attachInterrupt(uint32_t interruptNum,
                                  void (*interruptCb)(void),
                                  uint32_t mode)
@@ -97,6 +103,7 @@ void EspIdfHal::attachInterrupt(uint32_t interruptNum,
     gpio_intr_enable(static_cast<gpio_num_t>(interruptNum));
 }
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::detachInterrupt(uint32_t interruptNum)
 {
     gpio_isr_handler_remove(static_cast<gpio_num_t>(interruptNum));
@@ -107,31 +114,37 @@ void EspIdfHal::detachInterrupt(uint32_t interruptNum)
  * Timing
  * ====================================================================== */
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::yield()
 {
     vTaskDelay(pdMS_TO_TICKS(1));
 }
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::delay(RadioLibTime_t ms)
 {
     vTaskDelay(pdMS_TO_TICKS(ms));
 }
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::delayMicroseconds(RadioLibTime_t us)
 {
     esp_rom_delay_us(static_cast<uint32_t>(us));
 }
 
+// cppcheck-suppress unusedFunction
 RadioLibTime_t EspIdfHal::millis()
 {
     return static_cast<RadioLibTime_t>(esp_timer_get_time() / 1000LL);
 }
 
+// cppcheck-suppress unusedFunction
 RadioLibTime_t EspIdfHal::micros()
 {
     return static_cast<RadioLibTime_t>(esp_timer_get_time());
 }
 
+// cppcheck-suppress unusedFunction
 long EspIdfHal::pulseIn(uint32_t pin, uint32_t state, RadioLibTime_t timeout)
 {
     /*
@@ -147,11 +160,13 @@ long EspIdfHal::pulseIn(uint32_t pin, uint32_t state, RadioLibTime_t timeout)
         if (esp_timer_get_time() >= deadline) return 0;
     }
     /* Wait for the target state to start */
+    // cppcheck-suppress knownConditionTrueFalse
     while (gpio_get_level(gpio) != (int)state) {
         if (esp_timer_get_time() >= deadline) return 0;
     }
     const int64_t pulse_start = esp_timer_get_time();
     /* Measure how long the target state lasts */
+    // cppcheck-suppress knownConditionTrueFalse
     while (gpio_get_level(gpio) == (int)state) {
         if (esp_timer_get_time() >= deadline) return 0;
     }
@@ -212,6 +227,7 @@ void EspIdfHal::spiBegin()
     }
 }
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::spiBeginTransaction()
 {
     if (_spi_device) {
@@ -219,6 +235,7 @@ void EspIdfHal::spiBeginTransaction()
     }
 }
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::spiTransfer(uint8_t *out, size_t len, uint8_t *in)
 {
     if (!_spi_device) {
@@ -243,6 +260,7 @@ void EspIdfHal::spiTransfer(uint8_t *out, size_t len, uint8_t *in)
     }
 }
 
+// cppcheck-suppress unusedFunction
 void EspIdfHal::spiEndTransaction()
 {
     if (_spi_device) {

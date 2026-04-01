@@ -289,7 +289,6 @@ void AudioTask(void *pvParameters)
         }
 #endif
 
-        int   active_metric = 0;
         float conf_display  = s_conf_ema;
 
         if (rms < RMS_MIN) {
@@ -309,7 +308,7 @@ void AudioTask(void *pvParameters)
                 s_conf_ema = EMA_ALPHA * fminf(hr.confidence, 0.15f) + (1.f - EMA_ALPHA) * s_conf_ema;
             }
 
-            active_metric = harm_ok ? 1 : 0;
+            const int active_metric = harm_ok ? 1 : 0;
 
             if (!alarm) {
                 if (harm_ok && s_conf_ema >= CONF_ON) {

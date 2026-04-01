@@ -80,10 +80,12 @@ static inline bool lora_encrypt(const uint8_t key[16],
     if (status != PSA_SUCCESS) return false;
 
     size_t out_len = 0;
+    // cppcheck-suppress cstyleCast
+    const uint8_t *pt_bytes = (const uint8_t *)pt;
     status = psa_aead_encrypt(kid, PSA_ALG_GCM,
                                iv, LORA_GCM_IV_LEN,
                                NULL, 0,
-                               (const uint8_t *)pt, LORA_PLAINTEXT_LEN,
+                               pt_bytes, LORA_PLAINTEXT_LEN,
                                pkt->aead, LORA_AEAD_OUT_LEN,
                                &out_len);
     psa_destroy_key(kid);
@@ -111,11 +113,13 @@ static inline bool lora_decrypt(const uint8_t key[16],
     if (status != PSA_SUCCESS) return false;
 
     size_t out_len = 0;
+    // cppcheck-suppress cstyleCast
+    uint8_t *pt_out_bytes = (uint8_t *)pt_out;
     status = psa_aead_decrypt(kid, PSA_ALG_GCM,
                                iv, LORA_GCM_IV_LEN,
                                NULL, 0,
                                pkt->aead, LORA_AEAD_OUT_LEN,
-                               (uint8_t *)pt_out, LORA_PLAINTEXT_LEN,
+                               pt_out_bytes, LORA_PLAINTEXT_LEN,
                                &out_len);
     psa_destroy_key(kid);
     return status == PSA_SUCCESS;
