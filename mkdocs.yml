@@ -8,18 +8,20 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  logo: assets/icon.png
+  favicon: assets/icon.png
   custom_dir: docs/overrides
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: black
+      primary: white
       accent: amber
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: black
+      primary: white
       accent: amber
       toggle:
         icon: material/brightness-4

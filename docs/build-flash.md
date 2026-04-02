@@ -5,7 +5,7 @@ The same codebase builds either role. Each role has its own build directory so b
 ## 1. Clone & find your serial port
 
 ```bash
-git clone https://github.com/TN666/batear.git
+git clone https://github.com/batear-io/batear.git
 cd batear
 ls /dev/cu.usb*          # note your port, e.g. /dev/cu.usbserial-3
 ```
