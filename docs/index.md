@@ -54,6 +54,14 @@ The same codebase builds as a **Detector** (mic + LoRa TX) or a **Gateway** (LoR
 
 <div class="grid cards" markdown>
 
+-   :material-flash:{ .lg .middle } **Web Flasher**
+
+    ---
+
+    Flash firmware from your browser — no toolchain required
+
+    [:octicons-arrow-right-24: Open Web Flasher](https://batear-io.github.io/batear/){ target="_blank" }
+
 -   :material-tools:{ .lg .middle } **Hardware Setup**
 
     ---

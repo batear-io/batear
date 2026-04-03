@@ -1,5 +1,8 @@
 # Prerequisites
 
+!!! note "Don't want to install ESP-IDF?"
+    Use the [Web Flasher](https://batear-io.github.io/batear/){ target="_blank" } to flash pre-built firmware directly from your browser. The prerequisites below are only needed if you want to build from source or customize configuration.
+
 ## Requirements
 
 - **ESP-IDF v6.x** — follow the [official installation guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/)

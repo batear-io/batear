@@ -5,21 +5,22 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     name: Build Batear Firmware
     runs-on: ubuntu-latest
-    
-    # Use Espressif's official Docker image
-    # v5.2 lacks esp_driver_i2s (new I2S API); align with project ESP-IDF 6.x (CLAUDE.md).
+
     container: espressif/idf:release-v6.0
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Fix git safe.directory issue inside Docker container
       - name: Fix Git Directory Permissions
         run: git config --global --add safe.directory /__w/batear/batear
 
@@ -27,19 +28,69 @@ jobs:
       - name: Build Detector
         run: |
           . $IDF_PATH/export.sh
-          # Clean up any residual configurations and build cache
           rm -rf build sdkconfig
-          # Instruct ESP-IDF to merge common defaults with detector-specific config
           env SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.detector" idf.py set-target esp32s3
-          # Start build
           idf.py build
+
+      - name: Merge Detector binary
+        run: |
+          . $IDF_PATH/export.sh
+          esptool.py --chip esp32s3 merge_bin -o merged_detector.bin \
+            --flash_mode dio --flash_size 8MB \
+            0x0    build/bootloader/bootloader.bin \
+            0x8000 build/partition_table/partition-table.bin \
+            0x10000 build/batear.bin
 
       # --- Build Gateway Role ---
       - name: Build Gateway
         run: |
           . $IDF_PATH/export.sh
-          # CRITICAL: Completely wipe the Detector's build folder and cache
           rm -rf build sdkconfig
-          # Instruct ESP-IDF to merge common defaults with gateway-specific config
           env SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.gateway" idf.py set-target esp32s3
           idf.py build
+
+      - name: Merge Gateway binary
+        run: |
+          . $IDF_PATH/export.sh
+          esptool.py --chip esp32s3 merge_bin -o merged_gateway.bin \
+            --flash_mode dio --flash_size 8MB \
+            0x0    build/bootloader/bootloader.bin \
+            0x8000 build/partition_table/partition-table.bin \
+            0x10000 build/batear.bin
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            merged_detector.bin
+            merged_gateway.bin
+
+  deploy:
+    name: Deploy Web Flasher
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download firmware
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: deploy/firmware
+
+      - name: Assemble site
+        run: |
+          cp web/index.html deploy/
+          cp web/manifest_detector.json deploy/
+          cp web/manifest_gateway.json deploy/
+          cp web/icon.png deploy/
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./deploy
+          force_orphan: true

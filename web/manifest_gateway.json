@@ -1,0 +1,15 @@
+{
+  "name": "Batear Gateway",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        {
+          "path": "firmware/merged_gateway.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

@@ -67,7 +67,17 @@ Full documentation is available at **[batear.io](https://docs.batear.io)**.
 
 ---
 
-## ⚡ Quick Start
+## 🌐 Web Flasher — Zero Install
+
+Flash firmware directly from your browser — no toolchain needed:
+
+**[Open Web Flasher](https://batear-io.github.io/batear/)**
+
+> Requires Chrome or Edge on desktop. Just connect your Heltec V3 via USB-C and click Install.
+
+---
+
+## ⚡ Quick Start (Build from Source)
 
 ```bash
 # Clone

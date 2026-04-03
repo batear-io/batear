@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Batear — Web Flasher</title>
+  <meta name="description" content="Flash Batear acoustic drone detection firmware to your ESP32-S3 directly from the browser. Zero install required.">
+  <link rel="icon" type="image/png" href="icon.png">
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#ffffff;--surface:#f6f8fa;--card:#f0f2f5;--border:#d1d9e0;
+      --text:#1f2328;--text-muted:#656d76;--accent:#d35400;--accent-dim:#b94800;
+      --blue:#0969da;--green:#1a7f37;--red:#cf222e;--yellow:#9a6700;
+      --radius:8px;--font-mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+    }
+    html{scroll-behavior:smooth}
+    body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;line-height:1.6;min-height:100vh}
+    a{color:var(--blue);text-decoration:none}
+    a:hover{text-decoration:underline}
+
+    .container{max-width:920px;margin:0 auto;padding:0 24px}
+
+    /* --- Header --- */
+    header{border-bottom:1px solid var(--border);padding:20px 0}
+    .header-inner{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+    .logo{line-height:1}
+    .logo img{height:36px;width:auto}
+    .brand{font-size:20px;font-weight:700;letter-spacing:-.5px}
+    .brand span{color:var(--accent)}
+    .tagline{color:var(--text-muted);font-size:13px;margin-left:auto;font-family:var(--font-mono)}
+
+    /* --- Hero --- */
+    .hero{padding:48px 0 32px;text-align:center}
+    .hero h1{font-size:clamp(28px,5vw,40px);font-weight:800;margin-bottom:12px;letter-spacing:-.5px}
+    .hero h1 span{color:var(--accent)}
+    .hero p{color:var(--text-muted);font-size:17px;max-width:600px;margin:0 auto 24px}
+
+    /* --- Browser Warning --- */
+    .browser-notice{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;display:flex;align-items:center;gap:12px;max-width:560px;margin:0 auto 40px;font-size:14px}
+    .browser-notice svg{flex-shrink:0}
+    .browser-notice strong{color:var(--yellow)}
+
+    /* --- Firmware Cards --- */
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;padding-bottom:48px}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;position:relative;overflow:hidden;transition:border-color .2s}
+    .card:hover{border-color:var(--accent)}
+    .card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent)}
+    .card-badge{display:inline-block;font-family:var(--font-mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;padding:3px 10px;border-radius:4px;margin-bottom:16px}
+    .card-badge.detector{background:rgba(211,84,0,.1);color:var(--accent)}
+    .card-badge.gateway{background:rgba(9,105,218,.1);color:var(--blue)}
+    .card h3{font-size:20px;margin-bottom:8px}
+    .card p{color:var(--text-muted);font-size:14px;margin-bottom:20px;min-height:60px}
+    .card .specs{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-bottom:20px;display:flex;flex-wrap:wrap;gap:8px 16px}
+    .card .specs span::before{content:'›';color:var(--accent);margin-right:6px}
+    .card esp-web-install-button{display:block}
+    .card esp-web-install-button button{width:100%;padding:12px 24px;font-size:15px;font-weight:600;border:none;border-radius:6px;cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+    .card esp-web-install-button button.detect-btn{background:var(--accent);color:#fff}
+    .card esp-web-install-button button.detect-btn:hover{background:var(--accent-dim)}
+    .card esp-web-install-button button.gate-btn{background:transparent;color:var(--blue);border:2px solid var(--blue)}
+    .card esp-web-install-button button.gate-btn:hover{background:rgba(9,105,218,.08)}
+
+    /* --- Section --- */
+    .section{padding:40px 0;border-top:1px solid var(--border)}
+    .section-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:var(--accent);margin-bottom:24px;font-family:var(--font-mono)}
+
+    /* --- Connection Guide --- */
+    .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}
+    .step{background:var(--card);border-radius:var(--radius);padding:20px;position:relative}
+    .step-num{font-family:var(--font-mono);font-size:32px;font-weight:800;color:var(--accent);opacity:.3;position:absolute;top:12px;right:16px}
+    .step h4{font-size:14px;margin-bottom:6px}
+    .step p{color:var(--text-muted);font-size:13px;line-height:1.5}
+
+    /* --- Spectrogram Preview --- */
+    .spectrogram-placeholder{background:var(--card);border:1px dashed var(--border);border-radius:var(--radius);padding:48px 24px;text-align:center}
+    .spectrogram-placeholder .bars{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:80px;margin-bottom:16px}
+    .spectrogram-placeholder .bar{width:6px;border-radius:2px;background:var(--accent);opacity:.6;animation:pulse 1.5s ease-in-out infinite alternate}
+    .spectrogram-placeholder .bar:nth-child(1){height:30%;animation-delay:0s}
+    .spectrogram-placeholder .bar:nth-child(2){height:60%;animation-delay:.1s}
+    .spectrogram-placeholder .bar:nth-child(3){height:90%;animation-delay:.2s}
+    .spectrogram-placeholder .bar:nth-child(4){height:45%;animation-delay:.3s}
+    .spectrogram-placeholder .bar:nth-child(5){height:75%;animation-delay:.4s}
+    .spectrogram-placeholder .bar:nth-child(6){height:50%;animation-delay:.5s}
+    .spectrogram-placeholder .bar:nth-child(7){height:85%;animation-delay:.6s}
+    .spectrogram-placeholder .bar:nth-child(8){height:35%;animation-delay:.7s}
+    .spectrogram-placeholder .bar:nth-child(9){height:65%;animation-delay:.8s}
+    .spectrogram-placeholder .bar:nth-child(10){height:40%;animation-delay:.9s}
+    .spectrogram-placeholder .bar:nth-child(11){height:70%;animation-delay:1s}
+    .spectrogram-placeholder .bar:nth-child(12){height:55%;animation-delay:1.1s}
+    @keyframes pulse{from{opacity:.3}to{opacity:.8}}
+    .spectrogram-placeholder p{color:var(--text-muted);font-size:14px}
+    .spectrogram-placeholder a{font-weight:600}
+
+    /* --- Troubleshooting --- */
+    .faq-list{display:grid;gap:12px}
+    .faq{background:var(--card);border-radius:var(--radius);padding:16px 20px}
+    .faq summary{cursor:pointer;font-weight:600;font-size:14px;list-style:none;display:flex;align-items:center;gap:8px}
+    .faq summary::before{content:'+';font-family:var(--font-mono);font-size:18px;color:var(--accent);font-weight:400;width:20px;text-align:center}
+    .faq[open] summary::before{content:'\2212'}
+    .faq .answer{padding-top:12px;color:var(--text-muted);font-size:14px;line-height:1.7}
+    .faq code{background:var(--surface);padding:2px 6px;border-radius:4px;font-family:var(--font-mono);font-size:13px}
+
+    /* --- Footer --- */
+    footer{border-top:1px solid var(--border);padding:24px 0;margin-top:16px}
+    .footer-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--text-muted)}
+    .footer-links{display:flex;gap:20px}
+    .footer-links a{color:var(--text-muted);font-size:13px}
+    .footer-links a:hover{color:var(--text)}
+
+    /* --- Unsupported --- */
+    .unsupported{display:none;background:#fff5f5;color:var(--red);border:1px solid var(--red);padding:14px 20px;border-radius:var(--radius);text-align:center;font-weight:600;margin-bottom:24px}
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="container header-inner">
+      <div class="logo"><img src="icon.png" alt="Batear"></div>
+      <div>
+        <div class="brand">BATEAR <span>Web Flasher</span></div>
+      </div>
+      <div class="tagline">ESP32-S3 &bull; Acoustic Drone Detection</div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Hero -->
+    <section class="hero">
+      <h1>Flash firmware <span>in 60 seconds</span></h1>
+      <p>No toolchain. No drivers. Connect your Heltec WiFi LoRa 32 V3 via USB and flash directly from the browser.</p>
+
+      <!-- Browser check -->
+      <div class="browser-notice">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2L18 17H2L10 2Z" stroke="#9a6700" stroke-width="1.5" fill="none"/><path d="M10 8v4M10 14v.5" stroke="#9a6700" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span>Requires <strong>Chrome 89+</strong> or <strong>Edge 89+</strong> on desktop &mdash; Web Serial API is not supported in Firefox or Safari.</span>
+      </div>
+
+      <div id="notSupported" class="unsupported">
+        Your browser does not support Web Serial. Please use Chrome or Edge on desktop.
+      </div>
+    </section>
+
+    <!-- Firmware Cards -->
+    <section class="cards">
+
+      <div class="card">
+        <span class="card-badge detector">Detector</span>
+        <h3>Acoustic Detector</h3>
+        <p>Captures audio via ICS-43434 MEMS microphone, runs FFT-based harmonic analysis, and transmits drone alerts over encrypted LoRa.</p>
+        <div class="specs">
+          <span>I2S Mic + DSP</span>
+          <span>LoRa TX (SX1262)</span>
+          <span>AES-128-GCM</span>
+        </div>
+        <esp-web-install-button manifest="manifest_detector.json">
+          <button slot="activate" class="detect-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            Install Detector
+          </button>
+        </esp-web-install-button>
+      </div>
+
+      <div class="card">
+        <span class="card-badge gateway">Gateway</span>
+        <h3>Alert Gateway</h3>
+        <p>Receives encrypted LoRa alerts from detectors, displays status on the on-board SSD1306 OLED, and drives an alert LED.</p>
+        <div class="specs">
+          <span>LoRa RX (SX1262)</span>
+          <span>SSD1306 OLED</span>
+          <span>Alert LED</span>
+        </div>
+        <esp-web-install-button manifest="manifest_gateway.json">
+          <button slot="activate" class="gate-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            Install Gateway
+          </button>
+        </esp-web-install-button>
+      </div>
+
+    </section>
+
+    <!-- Connection Guide -->
+    <section class="section">
+      <div class="section-title">// Connection Guide</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">01</div>
+          <h4>Connect via USB-C</h4>
+          <p>Plug your Heltec WiFi LoRa 32 V3 into your computer using a USB-C data cable (not charge-only).</p>
+        </div>
+        <div class="step">
+          <div class="step-num">02</div>
+          <h4>Select Firmware</h4>
+          <p>Choose <strong>Detector</strong> for mic nodes or <strong>Gateway</strong> for the OLED alert receiver. Click the Install button.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">03</div>
+          <h4>Pick Serial Port</h4>
+          <p>A dialog will appear &mdash; select the serial port for your ESP32-S3 (usually <code>CP2102</code> or <code>USB JTAG</code>).</p>
+        </div>
+        <div class="step">
+          <div class="step-num">04</div>
+          <h4>Wait &amp; Done</h4>
+          <p>Flashing takes about 30&ndash;60 seconds. The device reboots automatically when complete.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Spectrogram Preview -->
+    <section class="section">
+      <div class="section-title">// Sample Detection</div>
+      <div class="spectrogram-placeholder">
+        <div class="bars">
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        </div>
+        <p>Harmonic frequency analysis &mdash; real drone spectrograms available at<br>
+        <a href="https://github.com/batear-io/batear-datasets" target="_blank" rel="noopener">batear-io/batear-datasets</a></p>
+      </div>
+    </section>
+
+    <!-- Troubleshooting -->
+    <section class="section">
+      <div class="section-title">// Troubleshooting</div>
+      <div class="faq-list">
+        <details class="faq">
+          <summary>No serial port appears in the dialog</summary>
+          <div class="answer">
+            Ensure you are using a <strong>data-capable</strong> USB-C cable (charge-only cables lack data lines).
+            On Linux, your user may need to be in the <code>dialout</code> group:
+            <code>sudo usermod -aG dialout $USER</code>, then log out and back in.
+          </div>
+        </details>
+        <details class="faq">
+          <summary>Flashing fails or times out</summary>
+          <div class="answer">
+            Hold the <strong>BOOT</strong> button on the board, press <strong>RST</strong>, then release BOOT
+            to enter download mode. Try flashing again. If the issue persists, lower your baud rate or try a different USB port.
+          </div>
+        </details>
+        <details class="faq">
+          <summary>How do I configure the network key or frequency?</summary>
+          <div class="answer">
+            The web flasher uses default settings (<code>915 MHz</code>, default AES key).
+            To customize LoRa frequency, sync word, or encryption key, build from source using
+            <code>idf.py menuconfig</code>. See the
+            <a href="https://github.com/batear-io/batear" target="_blank" rel="noopener">project README</a> for full build instructions.
+          </div>
+        </details>
+        <details class="faq">
+          <summary>Which boards are supported?</summary>
+          <div class="answer">
+            Currently only the <strong>Heltec WiFi LoRa 32 V3</strong> (ESP32-S3 + SX1262) is supported.
+            The firmware is compiled for this specific board's GPIO mapping and peripherals.
+          </div>
+        </details>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container footer-inner">
+      <span>&copy; 2026 Batear &mdash; Open-Source Acoustic Drone Detection</span>
+      <div class="footer-links">
+        <a href="https://github.com/batear-io/batear" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/batear-io/batear/issues" target="_blank" rel="noopener">Issues</a>
+        <a href="https://github.com/batear-io/batear-datasets" target="_blank" rel="noopener">Datasets</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    if (!("serial" in navigator)) {
+      document.getElementById("notSupported").style.display = "block";
+    }
+  </script>
+
+</body>
+</html>

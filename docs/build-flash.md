@@ -1,5 +1,8 @@
 # Build & Flash
 
+!!! tip "Just want to flash? Use the [Web Flasher](https://batear-io.github.io/batear/){ target="_blank" }"
+    No toolchain installation needed — flash Detector or Gateway firmware directly from Chrome/Edge in under 60 seconds. The instructions below are for building from source with custom configuration.
+
 The same codebase builds either role. Each role has its own build directory so both can coexist.
 
 ## 1. Clone & find your serial port
