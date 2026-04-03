@@ -3,6 +3,7 @@ name: ESP-IDF Build CI
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -81,13 +82,12 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: firmware-latest
-          name: Latest Firmware
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'firmware-latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest Firmware' }}
           body: |
-            Pre-built firmware binaries from the latest `main` branch.
-            Used by the [Web Flasher](https://docs.batear.io/flasher/).
-          prerelease: true
-          make_latest: false
+            Pre-built firmware binaries. Flash via the [Web Flasher](https://docs.batear.io/flasher/).
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          make_latest: ${{ startsWith(github.ref, 'refs/tags/') }}
           files: |
             merged_detector.bin
             merged_gateway.bin

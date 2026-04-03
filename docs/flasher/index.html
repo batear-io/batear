@@ -108,6 +108,13 @@
     .footer-links a{color:var(--text-muted);font-size:13px}
     .footer-links a:hover{color:var(--text)}
 
+    /* --- Version Picker --- */
+    .version-picker{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;max-width:400px;margin:0 auto 32px;display:flex;align-items:center;gap:12px}
+    .version-picker label{font-size:14px;font-weight:600;white-space:nowrap}
+    .version-picker select{flex:1;padding:8px 12px;font-size:14px;font-family:var(--font-mono);border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23656d76' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+    .version-picker select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+    .version-picker .loading{font-size:13px;color:var(--text-muted);font-family:var(--font-mono)}
+
     /* --- Unsupported --- */
     .unsupported{display:none;background:#fff5f5;color:var(--red);border:1px solid var(--red);padding:14px 20px;border-radius:var(--radius);text-align:center;font-weight:600;margin-bottom:24px}
   </style>
@@ -141,6 +148,15 @@
       <div id="notSupported" class="unsupported">
         Your browser does not support Web Serial. Please use Chrome or Edge on desktop.
       </div>
+
+      <!-- Version Picker -->
+      <div class="version-picker">
+        <label for="versionSelect">Version:</label>
+        <select id="versionSelect">
+          <option value="firmware-latest">Latest (main)</option>
+        </select>
+        <span id="versionLoading" class="loading">loading...</span>
+      </div>
     </section>
 
     <!-- Firmware Cards -->
@@ -155,7 +171,7 @@
           <span>LoRa TX (SX1262)</span>
           <span>AES-128-GCM</span>
         </div>
-        <esp-web-install-button manifest="manifest_detector.json">
+        <esp-web-install-button id="btnDetector" manifest="manifest_detector.json">
           <button slot="activate" class="detect-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
             Install Detector
@@ -172,7 +188,7 @@
           <span>SSD1306 OLED</span>
           <span>Alert LED</span>
         </div>
-        <esp-web-install-button manifest="manifest_gateway.json">
+        <esp-web-install-button id="btnGateway" manifest="manifest_gateway.json">
           <button slot="activate" class="gate-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
             Install Gateway
@@ -280,6 +296,59 @@
     if (!("serial" in navigator)) {
       document.getElementById("notSupported").style.display = "block";
     }
+
+    const REPO = "batear-io/batear";
+    const BASE = `https://github.com/${REPO}/releases/download`;
+    const select = document.getElementById("versionSelect");
+    const loading = document.getElementById("versionLoading");
+    const btnDet = document.getElementById("btnDetector");
+    const btnGw  = document.getElementById("btnGateway");
+
+    let manifestUrls = {};
+
+    function makeManifest(name, tag, role) {
+      return URL.createObjectURL(new Blob([JSON.stringify({
+        name: `Batear ${name}`,
+        new_install_prompt_erase: true,
+        builds: [{
+          chipFamily: "ESP32-S3",
+          parts: [{ path: `${BASE}/${tag}/merged_${role}.bin`, offset: 0 }]
+        }]
+      })], { type: "application/json" }));
+    }
+
+    function setVersion(tag) {
+      if (manifestUrls.det) URL.revokeObjectURL(manifestUrls.det);
+      if (manifestUrls.gw)  URL.revokeObjectURL(manifestUrls.gw);
+      if (tag === "firmware-latest") {
+        btnDet.setAttribute("manifest", "manifest_detector.json");
+        btnGw.setAttribute("manifest", "manifest_gateway.json");
+        manifestUrls = {};
+      } else {
+        manifestUrls.det = makeManifest("Detector " + tag, tag, "detector");
+        manifestUrls.gw  = makeManifest("Gateway " + tag, tag, "gateway");
+        btnDet.setAttribute("manifest", manifestUrls.det);
+        btnGw.setAttribute("manifest", manifestUrls.gw);
+      }
+    }
+
+    select.addEventListener("change", () => setVersion(select.value));
+
+    fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`)
+      .then(r => r.json())
+      .then(releases => {
+        releases
+          .filter(r => r.tag_name !== "firmware-latest" &&
+                       r.assets.some(a => a.name.startsWith("merged_")))
+          .forEach(r => {
+            const opt = document.createElement("option");
+            opt.value = r.tag_name;
+            opt.textContent = `${r.tag_name}${r.name !== r.tag_name ? " — " + r.name : ""}`;
+            select.appendChild(opt);
+          });
+      })
+      .catch(() => {})
+      .finally(() => loading.style.display = "none");
   </script>
 
 </body>
