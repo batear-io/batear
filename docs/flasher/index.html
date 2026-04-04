@@ -7,6 +7,7 @@
   <meta name="description" content="Flash Batear acoustic drone detection firmware to your ESP32-S3 directly from the browser. Zero install required.">
   <link rel="icon" type="image/png" href="icon.png">
   <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <script type="module" src="nvs_gen.js"></script>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     :root{
@@ -117,6 +118,23 @@
 
     /* --- Unsupported --- */
     .unsupported{display:none;background:#fff5f5;color:var(--red);border:1px solid var(--red);padding:14px 20px;border-radius:var(--radius);text-align:center;font-weight:600;margin-bottom:24px}
+
+    /* --- Key Config --- */
+    .key-config{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;max-width:560px;margin:0 auto 32px}
+    .key-config .section-title{margin-bottom:16px}
+    .key-field{margin-bottom:14px}
+    .key-field label{display:block;font-size:13px;font-weight:600;margin-bottom:4px;font-family:var(--font-mono)}
+    .key-field .input-row{display:flex;gap:8px}
+    .key-field input{flex:1;padding:8px 12px;font-size:14px;font-family:var(--font-mono);border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)}
+    .key-field input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+    .key-field input.invalid{border-color:var(--red);background:#fff5f5}
+    .key-field .hint{font-size:12px;color:var(--text-muted);margin-top:3px}
+    .key-field .hint.error{color:var(--red)}
+    .btn-sm{padding:8px 14px;font-size:13px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .15s}
+    .btn-sm:hover{border-color:var(--accent);color:var(--accent)}
+    .key-status{font-size:13px;padding:10px 14px;border-radius:6px;margin-top:4px;display:flex;align-items:center;gap:8px}
+    .key-status.provisioned{background:rgba(26,127,55,.08);color:var(--green)}
+    .key-status.default-key{background:rgba(154,103,0,.08);color:var(--yellow)}
   </style>
 </head>
 <body>
@@ -156,6 +174,23 @@
           <option value="firmware-latest">Latest (main)</option>
         </select>
         <span id="versionLoading" class="loading">loading...</span>
+      </div>
+    </section>
+
+    <!-- Key Configuration -->
+    <section class="key-config">
+      <div class="section-title">// Network Key</div>
+      <div class="key-field">
+        <label>AES-128 Network Key (32 hex chars)</label>
+        <div class="input-row">
+          <input type="text" id="inputAppKey" maxlength="32" placeholder="e.g. A1B2C3D4E5F6071829304A5B6C7D8E9F" spellcheck="false" autocomplete="off">
+          <button class="btn-sm" id="btnGenKey" title="Generate random key">Generate</button>
+        </div>
+        <div class="hint" id="hintAppKey">Same key must be used on both Detector and Gateway.</div>
+      </div>
+      <div class="key-status default-key" id="keyStatus">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M10 2L18 17H2L10 2Z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M10 8v4M10 14v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span>No key entered — firmware will use the default shared key.</span>
       </div>
     </section>
 
@@ -260,12 +295,14 @@
           </div>
         </details>
         <details class="faq">
-          <summary>How do I configure the network key or frequency?</summary>
+          <summary>How do I configure the network key?</summary>
           <div class="answer">
-            The web flasher uses default settings (<code>915 MHz</code>, default AES key).
-            To customize LoRa frequency, sync word, or encryption key, build from source using
-            <code>idf.py menuconfig</code>. See the
-            <a href="https://github.com/batear-io/batear" target="_blank" rel="noopener">project README</a> for full build instructions.
+            Enter a 32-character hex key in the <strong>Network Key</strong> field above before
+            flashing. The same key must be used on both the Detector and Gateway. Click
+            <strong>Generate</strong> to create a random key, then flash both devices.
+            The key is stored in NVS (non-volatile storage) at offset <code>0x9000</code>.
+            To change LoRa frequency or sync word, build from source using
+            <code>idf.py menuconfig</code>.
           </div>
         </details>
         <details class="faq">
@@ -292,48 +329,127 @@
     </div>
   </footer>
 
-  <script>
+  <script type="module">
+    import { generateNvsImage, hexToBytes, generateRandomKey } from "./nvs_gen.js";
+
     if (!("serial" in navigator)) {
       document.getElementById("notSupported").style.display = "block";
     }
 
     const REPO = "batear-io/batear";
-    const select = document.getElementById("versionSelect");
-    const loading = document.getElementById("versionLoading");
-    const btnDet = document.getElementById("btnDetector");
-    const btnGw  = document.getElementById("btnGateway");
+    const NVS_OFFSET = 0x9000;
+
+    const select    = document.getElementById("versionSelect");
+    const loading   = document.getElementById("versionLoading");
+    const btnDet    = document.getElementById("btnDetector");
+    const btnGw     = document.getElementById("btnGateway");
+    const inputKey  = document.getElementById("inputAppKey");
+    const btnGen    = document.getElementById("btnGenKey");
+    const hintKey   = document.getElementById("hintAppKey");
+    const keyStatus = document.getElementById("keyStatus");
 
     let manifestUrls = {};
+    let nvsUrl = null;
 
     const pageBase = window.location.href.replace(/[^/]*$/, "");
 
+    /* ---- NVS generation ---- */
+
+    function getValidKey() {
+      const raw = inputKey.value.replace(/[:\s-]/g, "");
+      if (raw.length !== 32) return null;
+      if (!/^[0-9a-fA-F]{32}$/.test(raw)) return null;
+      return raw;
+    }
+
+    function buildNvsBlob(appKeyHex) {
+      if (nvsUrl) URL.revokeObjectURL(nvsUrl);
+      nvsUrl = null;
+
+      const appKey = hexToBytes(appKeyHex);
+      /* DevEUI: use 8 zero bytes as placeholder — firmware derives from MAC */
+      const devEui = new Uint8Array(8);
+      const nvsImage = generateNvsImage(devEui, appKey);
+      nvsUrl = URL.createObjectURL(new Blob([nvsImage], { type: "application/octet-stream" }));
+      return nvsUrl;
+    }
+
+    /* ---- Manifest building ---- */
+
     function makeManifest(name, tag, role) {
+      const fwPath = `${pageBase}firmware/${tag}/merged_${role}.bin`;
+      const parts = [{ path: fwPath, offset: 0 }];
+
+      const validKey = getValidKey();
+      if (validKey) {
+        parts.push({ path: buildNvsBlob(validKey), offset: NVS_OFFSET });
+      }
+
       return URL.createObjectURL(new Blob([JSON.stringify({
         name: `Batear ${name}`,
         new_install_prompt_erase: true,
-        builds: [{
-          chipFamily: "ESP32-S3",
-          parts: [{ path: `${pageBase}firmware/${tag}/merged_${role}.bin`, offset: 0 }]
-        }]
+        builds: [{ chipFamily: "ESP32-S3", parts }]
       })], { type: "application/json" }));
     }
 
-    function setVersion(tag) {
+    function updateManifests() {
       if (manifestUrls.det) URL.revokeObjectURL(manifestUrls.det);
       if (manifestUrls.gw)  URL.revokeObjectURL(manifestUrls.gw);
-      if (tag === "firmware-latest") {
-        btnDet.setAttribute("manifest", "manifest_detector.json");
-        btnGw.setAttribute("manifest", "manifest_gateway.json");
-        manifestUrls = {};
-      } else {
-        manifestUrls.det = makeManifest("Detector " + tag, tag, "detector");
-        manifestUrls.gw  = makeManifest("Gateway " + tag, tag, "gateway");
-        btnDet.setAttribute("manifest", manifestUrls.det);
-        btnGw.setAttribute("manifest", manifestUrls.gw);
-      }
+
+      const tag = select.value;
+      manifestUrls.det = makeManifest("Detector " + tag, tag, "detector");
+      manifestUrls.gw  = makeManifest("Gateway " + tag, tag, "gateway");
+      btnDet.setAttribute("manifest", manifestUrls.det);
+      btnGw.setAttribute("manifest", manifestUrls.gw);
     }
 
-    select.addEventListener("change", () => setVersion(select.value));
+    /* ---- Key input validation ---- */
+
+    function validateKeyInput() {
+      const raw = inputKey.value.replace(/[:\s-]/g, "");
+      inputKey.classList.remove("invalid");
+      hintKey.classList.remove("error");
+      hintKey.textContent = "Same key must be used on both Detector and Gateway.";
+
+      if (raw.length === 0) {
+        keyStatus.className = "key-status default-key";
+        keyStatus.querySelector("span").textContent =
+          "No key entered \u2014 firmware will use the default shared key.";
+        updateManifests();
+        return;
+      }
+
+      if (raw.length !== 32 || !/^[0-9a-fA-F]+$/.test(raw)) {
+        inputKey.classList.add("invalid");
+        hintKey.classList.add("error");
+        hintKey.textContent = raw.length !== 32
+          ? `Need 32 hex chars (currently ${raw.length}).`
+          : "Invalid characters \u2014 only 0-9 and A-F allowed.";
+        keyStatus.className = "key-status default-key";
+        keyStatus.querySelector("span").textContent =
+          "Invalid key \u2014 firmware will use the default shared key.";
+        return;
+      }
+
+      keyStatus.className = "key-status provisioned";
+      keyStatus.querySelector("span").textContent =
+        "Custom key will be flashed to NVS \u2014 use the same key for both devices.";
+      updateManifests();
+    }
+
+    inputKey.addEventListener("input", validateKeyInput);
+
+    btnGen.addEventListener("click", () => {
+      inputKey.value = generateRandomKey(16);
+      validateKeyInput();
+    });
+
+    /* ---- Version picker ---- */
+
+    select.addEventListener("change", updateManifests);
+
+    /* Initial manifest setup */
+    updateManifests();
 
     fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`)
       .then(r => r.json())
@@ -344,7 +460,7 @@
           .forEach(r => {
             const opt = document.createElement("option");
             opt.value = r.tag_name;
-            opt.textContent = `${r.tag_name}${r.name !== r.tag_name ? " — " + r.name : ""}`;
+            opt.textContent = `${r.tag_name}${r.name !== r.tag_name ? " \u2014 " + r.name : ""}`;
             select.appendChild(opt);
           });
       })

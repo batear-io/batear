@@ -9,6 +9,7 @@
 
 #include "gateway_task.h"
 #include "lora_crypto.h"
+#include "lorawan_provision.h"
 #include "EspIdfHal.h"
 #include "pin_config.h"
 #include "oled.h"
@@ -29,8 +30,6 @@ static const char *TAG = "gw";
 #define LORA_CR             5
 #define LORA_SYNC_WORD      CONFIG_BATEAR_LORA_SYNC_WORD
 #define LORA_TX_DBM         22
-
-static const uint8_t s_net_key[16] = BATEAR_NET_KEY;
 
 /* Per-device state */
 typedef struct {
@@ -173,7 +172,8 @@ extern "C" void GatewayTask(void *pvParameters)
         }
 
         lora_plaintext_t pt;
-        if (!lora_decrypt(s_net_key, reinterpret_cast<lora_packet_t *>(rx_buf), &pt)) {
+        const uint8_t *net_key = lorawan_get_keys()->app_key;
+        if (!lora_decrypt(net_key, reinterpret_cast<lora_packet_t *>(rx_buf), &pt)) {
             ESP_LOGW(TAG, "decrypt FAILED — wrong key or forged");
             s_reject_count++;
             display_idle();

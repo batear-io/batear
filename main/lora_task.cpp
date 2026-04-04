@@ -11,6 +11,7 @@
 #include "lora_task.h"
 #include "drone_detector.h"
 #include "lora_crypto.h"
+#include "lorawan_provision.h"
 #include "EspIdfHal.h"
 #include "pin_config.h"
 
@@ -41,8 +42,7 @@ static EspIdfHal *s_hal    = nullptr;
 static Module    *s_module = nullptr;
 static SX1262    *s_radio  = nullptr;
 
-static const uint8_t s_net_key[16] = BATEAR_NET_KEY;
-static uint16_t      s_tx_seq      = 0;
+static uint16_t s_tx_seq = 0;
 
 /* =========================================================================
  * Internal helpers
@@ -166,7 +166,8 @@ extern "C" void LoRaTask(void *pvParameters)
 
         lora_packet_t pkt;
         bool ok = false;
-        if (lora_encrypt(s_net_key, pt.seq, &pt, &pkt)) {
+        const uint8_t *net_key = lorawan_get_keys()->app_key;
+        if (lora_encrypt(net_key, pt.seq, &pt, &pkt)) {
             ok = lora_transmit(reinterpret_cast<const uint8_t *>(&pkt), sizeof(pkt));
         } else {
             ESP_LOGE(TAG, "encrypt failed");

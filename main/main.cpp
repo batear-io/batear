@@ -16,11 +16,10 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "esp_log.h"
+#include "nvs_flash.h"
 #include "sdkconfig.h"
 
-#ifdef CONFIG_BATEAR_LORAWAN_PROVISION
 #include "lorawan_provision.h"
-#endif
 
 #ifdef CONFIG_BATEAR_ROLE_DETECTOR
 #include "drone_detector.h"
@@ -40,14 +39,19 @@ QueueHandle_t g_drone_event_queue = NULL;
 
 extern "C" void app_main(void)
 {
-#ifdef CONFIG_BATEAR_LORAWAN_PROVISION
-    lorawan_keys_t lora_keys;
-    if (lorawan_provision_keys(&lora_keys) == ESP_OK) {
-        lorawan_log_keys(TAG, &lora_keys);
-    } else {
-        ESP_LOGE(TAG, "LoRaWAN provisioning failed — cannot read MAC");
+    {
+        esp_err_t nret = nvs_flash_init();
+        if (nret == ESP_ERR_NVS_NO_FREE_PAGES || nret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            nvs_flash_erase();
+            nret = nvs_flash_init();
+        }
+        if (nret != ESP_OK) {
+            ESP_LOGE(TAG, "NVS init failed: %s", esp_err_to_name(nret));
+        }
     }
-#endif
+
+    lorawan_provision_init();
+    lorawan_log_keys(TAG);
 
 #ifdef CONFIG_BATEAR_ROLE_DETECTOR
 
