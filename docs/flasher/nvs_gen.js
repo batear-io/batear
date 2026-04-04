@@ -21,10 +21,10 @@ const ENTRIES_OFFSET = HEADER_SIZE + BITMAP_SIZE;  // 0x40
 const PAGE_STATE_ACTIVE = 0xFFFFFFFE;
 const NVS_VERSION       = 0xFE;
 
-// NVS item types
+// NVS item types (from ESP-IDF nvs.h / nvs_handle.hpp)
 const TYPE_U8         = 0x01;
-const TYPE_BLOB_DATA  = 0x48;
-const TYPE_BLOB_IDX   = 0x49;
+const TYPE_BLOB_DATA  = 0x42;  // NVS_TYPE_BLOB
+const TYPE_BLOB_IDX   = 0x48;
 
 // Entry states (2 bits per entry)
 const ES_WRITTEN = 0x02;  // 10b
@@ -93,22 +93,16 @@ function setEntryState(bitmap, index, state) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Entry-level CRC: covers key[16] + data[8] + extra spans           */
+/*  Entry-level CRC                                                    */
+/*  Covers entry[0:4] (ns,type,span,chunk) + entry[8:32] (key+data)   */
+/*  = 28 bytes, init = 0xFFFFFFFF  (matches ESP-IDF set_crc_header)    */
 /* ------------------------------------------------------------------ */
 
-function entryItemCrc(page, entryOffset, span) {
-  const keyDataStart = entryOffset + 8;   // skip ns, type, span, chunk, crc
-  const keyDataLen   = 16 + 8;            // key + data fields
-  const extraLen     = (span - 1) * ENTRY_SIZE;
-  const total        = keyDataLen + extraLen;
-
-  const slice = new Uint8Array(total);
-  slice.set(page.subarray(keyDataStart, keyDataStart + keyDataLen));
-  if (extraLen > 0) {
-    const extraStart = entryOffset + ENTRY_SIZE;
-    slice.set(page.subarray(extraStart, extraStart + extraLen), keyDataLen);
-  }
-  return crc32(slice);
+function entryItemCrc(page, entryOffset) {
+  const crcBuf = new Uint8Array(28);
+  crcBuf.set(page.subarray(entryOffset, entryOffset + 4));         // [0:4]
+  crcBuf.set(page.subarray(entryOffset + 8, entryOffset + 32), 4); // [8:32]
+  return crc32(crcBuf, 0xFFFFFFFF);
 }
 
 /* ------------------------------------------------------------------ */
@@ -136,17 +130,17 @@ function writeBlobEntries(page, startIdx, nsIdx, key, blobData) {
   // --- Blob Data entry (TYPE_BLOB_DATA) ---
   const off = writeEntryHeader(page, startIdx, nsIdx, TYPE_BLOB_DATA, dataSpan, 0, key);
 
-  // Data field: dataSize(u16) + reserved(u16) + dataCrc32(u32)
+  // Data field: dataSize(u16) + reserved(u16, 0xFF) + dataCRC(u32)
   writeU16(page, off + 24, blobData.length);
-  writeU16(page, off + 26, 0);
-  writeU32(page, off + 28, crc32(blobData));
+  // bytes 26-27 stay 0xFF from page.fill()
+  writeU32(page, off + 28, crc32(blobData, 0xFFFFFFFF));
 
   // Raw blob bytes in subsequent entry slots
   const rawOff = off + ENTRY_SIZE;
   page.set(blobData, rawOff);
 
-  // Compute and write entry CRC
-  writeU32(page, off + 4, entryItemCrc(page, off, dataSpan));
+  // Compute and write entry CRC (covers header only, not extra spans)
+  writeU32(page, off + 4, entryItemCrc(page, off));
 
   // Mark bitmap: dataSpan entries starting at startIdx
   for (let i = 0; i < dataSpan; i++) {
@@ -157,13 +151,13 @@ function writeBlobEntries(page, startIdx, nsIdx, key, blobData) {
   const idxEntryIdx = startIdx + dataSpan;
   const idxOff = writeEntryHeader(page, idxEntryIdx, nsIdx, TYPE_BLOB_IDX, 1, 0xFF, key);
 
-  // Data field: dataSize(u32) + chunkCount(u8) + chunkStart(u8) + reserved(u16)
+  // Data field: dataSize(u32) + chunkCount(u8) + chunkStart(u8) + reserved(u16=0xFFFF)
   writeU32(page, idxOff + 24, blobData.length);
   page[idxOff + 28] = 1;   // chunkCount
   page[idxOff + 29] = 0;   // chunkStart
-  writeU16(page, idxOff + 30, 0);
+  // bytes 30-31 stay 0xFF from page.fill()
 
-  writeU32(page, idxOff + 4, entryItemCrc(page, idxOff, 1));
+  writeU32(page, idxOff + 4, entryItemCrc(page, idxOff));
   setEntryState(page.subarray(HEADER_SIZE, HEADER_SIZE + BITMAP_SIZE), idxEntryIdx, ES_WRITTEN);
 
   return idxEntryIdx + 1;  // next free entry index
@@ -192,16 +186,16 @@ export function generateNvsImage(devEui, appKey) {
   writeU32(page, 4, 0);          // sequence number
   page[8] = NVS_VERSION;
   // bytes 9-27: 0xFF (already filled)
-  writeU32(page, 28, crc32(page.subarray(0, 28), 0xFFFFFFFF));
+  // Header CRC covers bytes 4-27 (excludes page state at 0-3)
+  writeU32(page, 28, crc32(page.subarray(4, 28), 0xFFFFFFFF));
 
   // --- Entry bitmap: start all empty (0xFF already) ---
 
   // --- Entry 0: Namespace "lora_cfg" ---
   const nsOff = writeEntryHeader(page, 0, 0, TYPE_U8, 1, 0xFF, "lora_cfg");
   page[nsOff + 24] = 1;  // namespace index = 1
-  // bytes 25-31 = 0x00
-  for (let i = 25; i <= 31; i++) page[nsOff + i] = 0;
-  writeU32(page, nsOff + 4, entryItemCrc(page, nsOff, 1));
+  // bytes 25-31 stay 0xFF from page.fill()
+  writeU32(page, nsOff + 4, entryItemCrc(page, nsOff));
   setEntryState(page.subarray(HEADER_SIZE, HEADER_SIZE + BITMAP_SIZE), 0, ES_WRITTEN);
 
   // --- Entries 1+: dev_eui blob ---
