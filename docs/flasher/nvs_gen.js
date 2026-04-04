@@ -3,8 +3,9 @@
  *
  * Generates a 4 KB (one page) NVS binary image containing:
  *   namespace "lora_cfg"
- *     blob "dev_eui"  (8 bytes)
- *     blob "app_key"  (16 bytes)
+ *     blob "dev_eui"   (8 bytes)
+ *     blob "app_key"   (16 bytes)
+ *     u8   "device_id" (1 byte, detector only)
  *
  * The output can be flashed to the NVS partition offset (0x9000 for
  * default single-app partition table) via esptool / esp-web-tools.
@@ -164,17 +165,31 @@ function writeBlobEntries(page, startIdx, nsIdx, key, blobData) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Write a U8 primitive entry                                         */
+/* ------------------------------------------------------------------ */
+
+function writeU8Entry(page, entryIdx, nsIdx, key, value) {
+  const off = writeEntryHeader(page, entryIdx, nsIdx, TYPE_U8, 1, 0xFF, key);
+  page[off + 24] = value & 0xFF;
+  // bytes 25-31 stay 0xFF from page.fill()
+  writeU32(page, off + 4, entryItemCrc(page, off));
+  setEntryState(page.subarray(HEADER_SIZE, HEADER_SIZE + BITMAP_SIZE), entryIdx, ES_WRITTEN);
+  return entryIdx + 1;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Public API                                                         */
 /* ------------------------------------------------------------------ */
 
 /**
  * Generate a 4 KB NVS partition image.
  *
- * @param {Uint8Array} devEui  - 8-byte DevEUI
- * @param {Uint8Array} appKey  - 16-byte AppKey / network key
+ * @param {Uint8Array} devEui     - 8-byte DevEUI
+ * @param {Uint8Array} appKey     - 16-byte AppKey / network key
+ * @param {number|null} deviceId  - Detector device ID (0-255), null to omit
  * @returns {Uint8Array} 4096-byte NVS page image
  */
-export function generateNvsImage(devEui, appKey) {
+export function generateNvsImage(devEui, appKey, deviceId = null) {
   if (devEui.length !== 8)  throw new Error("dev_eui must be 8 bytes");
   if (appKey.length !== 16) throw new Error("app_key must be 16 bytes");
 
@@ -202,11 +217,12 @@ export function generateNvsImage(devEui, appKey) {
   let nextIdx = writeBlobEntries(page, 1, 1, "dev_eui", devEui);
 
   // --- Entries N+: app_key blob ---
-  writeBlobEntries(page, nextIdx, 1, "app_key", appKey);
+  nextIdx = writeBlobEntries(page, nextIdx, 1, "app_key", appKey);
 
-  // --- Recompute page header CRC (bitmap was modified) ---
-  // Note: page header CRC only covers header bytes 0-27, not the bitmap.
-  // It was already written correctly above.
+  // --- Optional: device_id (U8) ---
+  if (deviceId !== null && deviceId !== undefined) {
+    writeU8Entry(page, nextIdx, 1, "device_id", deviceId);
+  }
 
   return page;
 }

@@ -55,7 +55,7 @@ extern "C" void app_main(void)
 
 #ifdef CONFIG_BATEAR_ROLE_DETECTOR
 
-    ESP_LOGI(TAG, "Batear DETECTOR (dev_id=%d)", CONFIG_BATEAR_DEVICE_ID);
+    ESP_LOGI(TAG, "Batear DETECTOR (dev_id=%u)", lorawan_get_keys()->device_id);
 
     g_drone_event_queue = xQueueCreate(4, sizeof(DroneEvent_t));
     if (g_drone_event_queue == NULL) {
