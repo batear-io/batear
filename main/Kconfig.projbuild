@@ -52,6 +52,16 @@ config BATEAR_NET_KEY
         characters. Must match between all detectors and the gateway.
         Generate: python3 -c "import os;print(os.urandom(16).hex().upper())"
 
+config BATEAR_LORAWAN_PROVISION
+    bool "Auto-provision LoRaWAN keys from MAC address"
+    default n
+    help
+        Derive unique DevEUI (EUI-64) and AppKey at runtime from the
+        ESP32's factory-burned MAC address.  This enables zero-config
+        flashing via Web Flasher — every node gets globally unique
+        LoRaWAN identifiers without manual entry.
+        Keys are logged at boot (INFO level) for TTN registration.
+
 config BATEAR_LORA_FREQ
     int "LoRa frequency (kHz)"
     default 915000
