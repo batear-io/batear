@@ -159,7 +159,7 @@ extern "C" void LoRaTask(void *pvParameters)
 
         lora_plaintext_t pt = {};
         pt.seq          = s_tx_seq++;
-        pt.device_id    = CONFIG_BATEAR_DEVICE_ID;
+        pt.device_id    = lorawan_get_keys()->device_id;
         pt.event_type   = static_cast<uint8_t>(ev.type);
         pt.f0_bin       = static_cast<uint8_t>(ev.f0_bin);
         pt.rms_db       = lora_rms_to_db(ev.rms);

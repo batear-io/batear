@@ -188,6 +188,13 @@
         </div>
         <div class="hint" id="hintAppKey">Same key must be used on both Detector and Gateway.</div>
       </div>
+      <div class="key-field">
+        <label>Detector Device ID (0–255)</label>
+        <div class="input-row">
+          <input type="number" id="inputDeviceId" min="0" max="255" step="1" placeholder="1" style="max-width:120px">
+        </div>
+        <div class="hint" id="hintDeviceId">Unique per detector — the gateway shows which device triggered an alarm.</div>
+      </div>
       <div class="key-status default-key" id="keyStatus">
         <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M10 2L18 17H2L10 2Z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M10 8v4M10 14v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         <span>No key entered — firmware will use the default shared key.</span>
@@ -295,12 +302,14 @@
           </div>
         </details>
         <details class="faq">
-          <summary>How do I configure the network key?</summary>
+          <summary>How do I configure the network key and device ID?</summary>
           <div class="answer">
             Enter a 32-character hex key in the <strong>Network Key</strong> field above before
             flashing. The same key must be used on both the Detector and Gateway. Click
             <strong>Generate</strong> to create a random key, then flash both devices.
-            The key is stored in NVS (non-volatile storage) at offset <code>0x9000</code>.
+            For detectors, assign a unique <strong>Device ID</strong> (0&ndash;255) so the
+            gateway can identify which detector triggered an alarm.
+            Both values are stored in NVS (non-volatile storage) at offset <code>0x9000</code>.
             To change LoRa frequency or sync word, build from source using
             <code>idf.py menuconfig</code>.
           </div>
@@ -348,6 +357,8 @@
     const btnGen    = document.getElementById("btnGenKey");
     const hintKey   = document.getElementById("hintAppKey");
     const keyStatus = document.getElementById("keyStatus");
+    const inputDevId = document.getElementById("inputDeviceId");
+    const hintDevId  = document.getElementById("hintDeviceId");
 
     let manifestUrls = {};
     let patchedUrls  = {};
@@ -372,6 +383,18 @@
       if (raw.length !== 32) return null;
       if (!/^[0-9a-fA-F]{32}$/.test(raw)) return null;
       return raw;
+    }
+
+    function getDeviceId() {
+      const val = inputDevId.value.trim();
+      if (val === "") return null;
+      const n = parseInt(val, 10);
+      if (isNaN(n) || n < 0 || n > 255) return null;
+      return n;
+    }
+
+    function needsNvsPatch() {
+      return getValidKey() !== null || getDeviceId() !== null;
     }
 
     function patchFirmware(fwBuf, nvsPage) {
@@ -413,15 +436,18 @@
       revokeAll();
       const tag = select.value;
       const validKey = getValidKey();
+      const devId    = getDeviceId();
+      const patch    = needsNvsPatch();
 
-      if (!validKey) {
+      if (!patch) {
         manifestUrls.det = makeSimpleManifest("Detector " + tag, fwUrl(tag, "detector"));
         manifestUrls.gw  = makeSimpleManifest("Gateway " + tag, fwUrl(tag, "gateway"));
       } else {
-        const nvsPage = generateNvsImage(
-          new Uint8Array(8),
-          hexToBytes(validKey)
-        );
+        const appKey = validKey ? hexToBytes(validKey) : hexToBytes("DEADBEEFCAFEBABE13374200F00DAA55");
+        const devEui = new Uint8Array(8);
+
+        const nvsDetector = generateNvsImage(devEui, appKey, devId);
+        const nvsGateway  = generateNvsImage(devEui, appKey, null);
 
         const [detBuf, gwBuf] = await Promise.all([
           fetchFirmware(fwUrl(tag, "detector")),
@@ -429,9 +455,9 @@
         ]);
 
         patchedUrls.det = URL.createObjectURL(
-          new Blob([patchFirmware(detBuf, nvsPage)], { type: "application/octet-stream" }));
+          new Blob([patchFirmware(detBuf, nvsDetector)], { type: "application/octet-stream" }));
         patchedUrls.gw = URL.createObjectURL(
-          new Blob([patchFirmware(gwBuf, nvsPage)], { type: "application/octet-stream" }));
+          new Blob([patchFirmware(gwBuf, nvsGateway)], { type: "application/octet-stream" }));
 
         manifestUrls.det = makeSimpleManifest("Detector " + tag, patchedUrls.det);
         manifestUrls.gw  = makeSimpleManifest("Gateway " + tag, patchedUrls.gw);
@@ -445,30 +471,43 @@
 
     let updateTimer = null;
 
-    function validateKeyInput() {
+    function validateAndUpdate() {
       const raw = inputKey.value.replace(/[:\s-]/g, "");
+      const devId = getDeviceId();
       inputKey.classList.remove("invalid");
       hintKey.classList.remove("error");
       hintKey.textContent = "Same key must be used on both Detector and Gateway.";
 
-      if (raw.length === 0) {
-        keyStatus.className = "key-status default-key";
-        keyStatus.querySelector("span").textContent =
-          "No key entered \u2014 firmware will use the default shared key.";
-        clearTimeout(updateTimer);
-        updateManifests();
-        return;
+      inputDevId.classList.remove("invalid");
+      hintDevId.classList.remove("error");
+      hintDevId.textContent = "Unique per detector \u2014 the gateway shows which device triggered an alarm.";
+
+      const devIdRaw = inputDevId.value.trim();
+      if (devIdRaw !== "" && devId === null) {
+        inputDevId.classList.add("invalid");
+        hintDevId.classList.add("error");
+        hintDevId.textContent = "Must be a whole number 0\u2013255.";
       }
 
-      if (raw.length !== 32 || !/^[0-9a-fA-F]+$/.test(raw)) {
-        inputKey.classList.add("invalid");
-        hintKey.classList.add("error");
-        hintKey.textContent = raw.length !== 32
-          ? `Need 32 hex chars (currently ${raw.length}).`
-          : "Invalid characters \u2014 only 0-9 and A-F allowed.";
+      let hasKey = false;
+      if (raw.length > 0) {
+        if (raw.length !== 32 || !/^[0-9a-fA-F]+$/.test(raw)) {
+          inputKey.classList.add("invalid");
+          hintKey.classList.add("error");
+          hintKey.textContent = raw.length !== 32
+            ? `Need 32 hex chars (currently ${raw.length}).`
+            : "Invalid characters \u2014 only 0-9 and A-F allowed.";
+        } else {
+          hasKey = true;
+        }
+      }
+
+      if (!hasKey && devId === null) {
         keyStatus.className = "key-status default-key";
         keyStatus.querySelector("span").textContent =
-          "Invalid key \u2014 firmware will use the default shared key.";
+          "No key or device ID entered \u2014 firmware uses compile-time defaults.";
+        clearTimeout(updateTimer);
+        updateManifests();
         return;
       }
 
@@ -479,18 +518,22 @@
       clearTimeout(updateTimer);
       updateTimer = setTimeout(async () => {
         await updateManifests();
-        if (getValidKey()) {
+        if (needsNvsPatch()) {
+          const parts = [];
+          if (hasKey) parts.push("custom key");
+          if (devId !== null) parts.push(`device ID ${devId}`);
           keyStatus.querySelector("span").textContent =
-            "Custom key embedded in firmware \u2014 use the same key for both devices.";
+            `Firmware patched with ${parts.join(" + ")} \u2014 ready to flash.`;
         }
       }, 300);
     }
 
-    inputKey.addEventListener("input", validateKeyInput);
+    inputKey.addEventListener("input", validateAndUpdate);
+    inputDevId.addEventListener("input", validateAndUpdate);
 
     btnGen.addEventListener("click", () => {
       inputKey.value = generateRandomKey(16);
-      validateKeyInput();
+      validateAndUpdate();
     });
 
     /* ---- Version picker ---- */

@@ -23,9 +23,11 @@ extern "C" {
 #define LORAWAN_APP_KEY_LEN  16
 
 typedef struct {
-    uint8_t dev_eui[LORAWAN_DEV_EUI_LEN];
-    uint8_t app_key[LORAWAN_APP_KEY_LEN];
-    bool    from_nvs;
+    uint8_t  dev_eui[LORAWAN_DEV_EUI_LEN];
+    uint8_t  app_key[LORAWAN_APP_KEY_LEN];
+    uint8_t  device_id;
+    bool     from_nvs;
+    bool     device_id_from_nvs;
 } lorawan_keys_t;
 
 /**

@@ -13,9 +13,10 @@
 
 static const char *TAG = "provision";
 
-#define NVS_NAMESPACE "lora_cfg"
-#define NVS_KEY_DEV_EUI "dev_eui"
-#define NVS_KEY_APP_KEY "app_key"
+#define NVS_NAMESPACE   "lora_cfg"
+#define NVS_KEY_DEV_EUI   "dev_eui"
+#define NVS_KEY_APP_KEY   "app_key"
+#define NVS_KEY_DEVICE_ID "device_id"
 
 static lorawan_keys_t s_keys;
 static bool s_initialised;
@@ -34,7 +35,7 @@ esp_err_t lorawan_provision_init(void)
         return ESP_OK;
     }
 
-    bool got_eui = false, got_key = false;
+    bool got_eui = false, got_key = false, got_devid = false;
 
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h);
@@ -49,6 +50,12 @@ esp_err_t lorawan_provision_init(void)
         if (nvs_get_blob(h, NVS_KEY_APP_KEY, s_keys.app_key, &len) == ESP_OK
             && len == LORAWAN_APP_KEY_LEN) {
             got_key = true;
+        }
+
+        uint8_t devid;
+        if (nvs_get_u8(h, NVS_KEY_DEVICE_ID, &devid) == ESP_OK) {
+            s_keys.device_id = devid;
+            got_devid = true;
         }
         nvs_close(h);
     }
@@ -71,7 +78,17 @@ esp_err_t lorawan_provision_init(void)
                  "for a unique network key.");
     }
 
+    /* device_id fallback: compile-time CONFIG_BATEAR_DEVICE_ID */
+    if (!got_devid) {
+#ifdef CONFIG_BATEAR_DEVICE_ID
+        s_keys.device_id = (uint8_t)CONFIG_BATEAR_DEVICE_ID;
+#else
+        s_keys.device_id = 0;
+#endif
+    }
+
     s_keys.from_nvs = got_eui && got_key;
+    s_keys.device_id_from_nvs = got_devid;
     s_initialised = true;
     return ESP_OK;
 }
@@ -97,4 +114,8 @@ void lorawan_log_keys(const char *tag)
              k->app_key[8],  k->app_key[9],  k->app_key[10], k->app_key[11],
              k->app_key[12], k->app_key[13], k->app_key[14], k->app_key[15],
              k->from_nvs ? " [NVS]" : " [DEFAULT]");
+
+    ESP_LOGI(tag, "DeviceID: %u (0x%02X)%s",
+             k->device_id, k->device_id,
+             k->device_id_from_nvs ? " [NVS]" : " [DEFAULT]");
 }
