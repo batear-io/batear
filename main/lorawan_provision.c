@@ -17,6 +17,8 @@ static const char *TAG = "provision";
 #define NVS_KEY_DEV_EUI   "dev_eui"
 #define NVS_KEY_APP_KEY   "app_key"
 #define NVS_KEY_DEVICE_ID "device_id"
+#define NVS_KEY_LORA_FREQ "lora_freq"
+#define NVS_KEY_SYNC_WORD "sync_word"
 
 static lorawan_keys_t s_keys;
 static bool s_initialised;
@@ -36,6 +38,7 @@ esp_err_t lorawan_provision_init(void)
     }
 
     bool got_eui = false, got_key = false, got_devid = false;
+    bool got_freq = false, got_sw = false;
 
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h);
@@ -57,6 +60,19 @@ esp_err_t lorawan_provision_init(void)
             s_keys.device_id = devid;
             got_devid = true;
         }
+
+        uint32_t freq;
+        if (nvs_get_u32(h, NVS_KEY_LORA_FREQ, &freq) == ESP_OK) {
+            s_keys.lora_freq_khz = freq;
+            got_freq = true;
+        }
+
+        uint8_t sw;
+        if (nvs_get_u8(h, NVS_KEY_SYNC_WORD, &sw) == ESP_OK) {
+            s_keys.lora_sync_word = sw;
+            got_sw = true;
+        }
+
         nvs_close(h);
     }
 
@@ -87,8 +103,17 @@ esp_err_t lorawan_provision_init(void)
 #endif
     }
 
+    if (!got_freq) {
+        s_keys.lora_freq_khz = (uint32_t)CONFIG_BATEAR_LORA_FREQ;
+    }
+    if (!got_sw) {
+        s_keys.lora_sync_word = (uint8_t)CONFIG_BATEAR_LORA_SYNC_WORD;
+    }
+
     s_keys.from_nvs = got_eui && got_key;
     s_keys.device_id_from_nvs = got_devid;
+    s_keys.lora_freq_from_nvs = got_freq;
+    s_keys.sync_word_from_nvs = got_sw;
     s_initialised = true;
     return ESP_OK;
 }
@@ -118,4 +143,9 @@ void lorawan_log_keys(const char *tag)
     ESP_LOGI(tag, "DeviceID: %u (0x%02X)%s",
              k->device_id, k->device_id,
              k->device_id_from_nvs ? " [NVS]" : " [DEFAULT]");
+
+    ESP_LOGI(tag, "LoRa freq: %lu kHz  sync_word: 0x%02X%s%s",
+             (unsigned long)k->lora_freq_khz, k->lora_sync_word,
+             k->lora_freq_from_nvs ? " freq[NVS]" : " freq[DEFAULT]",
+             k->sync_word_from_nvs ? " sw[NVS]" : " sw[DEFAULT]");
 }

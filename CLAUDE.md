@@ -44,10 +44,10 @@ Key parameters in `sdkconfig.detector` / `sdkconfig.gateway`:
 |---|---|
 | `CONFIG_BATEAR_BOARD_*` | Board selection (determines GPIO mapping) |
 | `CONFIG_ESPTOOLPY_FLASHSIZE_*` | Flash size (must match board hardware) |
-| `CONFIG_BATEAR_NET_KEY` | 32-char hex AES-128 key. Must match on all devices. |
-| `CONFIG_BATEAR_LORA_FREQ` | Frequency in kHz (915000 / 868000 / 923000) |
-| `CONFIG_BATEAR_LORA_SYNC_WORD` | Network isolation (0x12 = private) |
-| `CONFIG_BATEAR_DEVICE_ID` | Detector only, 0–255 |
+| `CONFIG_BATEAR_NET_KEY` | 32-char hex AES-128 key. Must match on all devices. (overridden by NVS) |
+| `CONFIG_BATEAR_LORA_FREQ` | Frequency in kHz (915000 / 868000 / 923000). (overridden by NVS) |
+| `CONFIG_BATEAR_LORA_SYNC_WORD` | Network isolation (0x12 = private). (overridden by NVS) |
+| `CONFIG_BATEAR_DEVICE_ID` | Detector only, 0–255. (overridden by NVS) |
 | `CONFIG_BATEAR_WIFI_SSID` | Gateway Wi-Fi SSID (overridden by NVS) |
 | `CONFIG_BATEAR_WIFI_PASS` | Gateway Wi-Fi password (overridden by NVS) |
 | `CONFIG_BATEAR_MQTT_BROKER_URL` | MQTT broker URI, e.g. `mqtt://ha.local:1883` |
@@ -71,6 +71,7 @@ batear/
 │   ├── drone_detector.h        # shared DroneEvent_t + queue
 │   ├── lora_crypto.h           # AES-128-GCM packet protocol (PSA API)
 │   ├── EspIdfHal.cpp/.h        # RadioLib HAL for ESP-IDF
+│   ├── config_console.c/.h     # serial console (show/set/reboot)
 │   ├── audio_processor.c/.h    # [detector] ESP-DSP FFT + PSD + harmonic analysis
 │   ├── audio_task.c/.h         # [detector] I2S mic + detection state machine
 │   ├── lora_task.cpp/.h        # [detector] LoRa TX

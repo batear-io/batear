@@ -12,6 +12,8 @@ dependencies:
   jgromes/radiolib:
     version: ">=6.6.0"
 
-  ## ESP-MQTT — moved out of ESP-IDF core in v6.0
+  ## ESP-MQTT: built-in on ESP-IDF <=5.x, removed from core in v6.0.
   espressif/mqtt:
     version: "*"
+    rules:
+      - if: "idf_version >=6.0.0"

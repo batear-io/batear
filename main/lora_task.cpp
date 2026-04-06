@@ -25,12 +25,10 @@
 
 static const char *TAG = "lora";
 
-/* LoRa RF parameters */
-#define LORA_FREQ_MHZ       (CONFIG_BATEAR_LORA_FREQ / 1000.0f)
+/* LoRa RF parameters (freq and sync_word come from NVS at runtime) */
 #define LORA_BW_KHZ         125.0f
 #define LORA_SF             10
 #define LORA_CR             5
-#define LORA_SYNC_WORD      CONFIG_BATEAR_LORA_SYNC_WORD
 #define LORA_TX_DBM         22
 #define LORA_TCXO_DELAY_MS  5
 
@@ -50,16 +48,20 @@ static uint16_t s_tx_seq = 0;
 
 static bool lora_init(void)
 {
+    const lorawan_keys_t *keys = lorawan_get_keys();
+    float freq_mhz = keys->lora_freq_khz / 1000.0f;
+    uint8_t sync_word = keys->lora_sync_word;
+
     s_hal    = new EspIdfHal(PIN_LORA_SCK, PIN_LORA_MISO, PIN_LORA_MOSI);
     s_module = new Module(s_hal, PIN_LORA_CS, PIN_LORA_DIO1, PIN_LORA_RST, PIN_LORA_BUSY);
     s_radio  = new SX1262(s_module);
 
     int16_t state = s_radio->begin(
-        LORA_FREQ_MHZ,
+        freq_mhz,
         LORA_BW_KHZ,
         LORA_SF,
         LORA_CR,
-        LORA_SYNC_WORD,
+        sync_word,
         LORA_TX_DBM
     );
     if (state != RADIOLIB_ERR_NONE) {
@@ -83,8 +85,8 @@ static bool lora_init(void)
         return false;
     }
 
-    ESP_LOGI(TAG, "SX1262 ready  freq=%.1f MHz  SF=%d  BW=%.0f kHz  pwr=%d dBm",
-             LORA_FREQ_MHZ, LORA_SF, LORA_BW_KHZ, LORA_TX_DBM);
+    ESP_LOGI(TAG, "SX1262 ready  freq=%.1f MHz  SF=%d  BW=%.0f kHz  pwr=%d dBm  sw=0x%02X",
+             freq_mhz, LORA_SF, LORA_BW_KHZ, LORA_TX_DBM, sync_word);
     return true;
 }
 

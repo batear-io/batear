@@ -21,6 +21,7 @@
 #include "sdkconfig.h"
 
 #include "lorawan_provision.h"
+#include "config_console.h"
 
 #ifdef CONFIG_BATEAR_ROLE_DETECTOR
 #include "drone_detector.h"
@@ -44,6 +45,7 @@ extern "C" void app_main(void)
     {
         esp_err_t nret = nvs_flash_init();
         if (nret == ESP_ERR_NVS_NO_FREE_PAGES || nret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            ESP_LOGW(TAG, "NVS partition changed — erasing all stored config");
             nvs_flash_erase();
             nret = nvs_flash_init();
         }
@@ -54,6 +56,8 @@ extern "C" void app_main(void)
 
     lorawan_provision_init();
     lorawan_log_keys(TAG);
+
+    config_console_init();
 
 #ifdef CONFIG_BATEAR_ROLE_DETECTOR
 

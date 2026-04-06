@@ -24,12 +24,10 @@
 
 static const char *TAG = "gw";
 
-/* LoRa RF — must match detector */
-#define LORA_FREQ_MHZ       (CONFIG_BATEAR_LORA_FREQ / 1000.0f)
+/* LoRa RF — must match detector (freq and sync_word come from NVS at runtime) */
 #define LORA_BW_KHZ         125.0f
 #define LORA_SF             10
 #define LORA_CR             5
-#define LORA_SYNC_WORD      CONFIG_BATEAR_LORA_SYNC_WORD
 #define LORA_TX_DBM         22
 
 /* Per-device state */
@@ -125,13 +123,17 @@ extern "C" void GatewayTask(void *pvParameters)
     gpio_set_level((gpio_num_t)PIN_LED, 0);
 
     /* LoRa */
+    const lorawan_keys_t *keys = lorawan_get_keys();
+    float freq_mhz = keys->lora_freq_khz / 1000.0f;
+    uint8_t sync_word = keys->lora_sync_word;
+
     EspIdfHal *hal   = new EspIdfHal(PIN_LORA_SCK, PIN_LORA_MISO, PIN_LORA_MOSI);
     Module    *mod   = new Module(hal, PIN_LORA_CS, PIN_LORA_DIO1,
                                  PIN_LORA_RST, PIN_LORA_BUSY);
     SX1262    *radio = new SX1262(mod);
 
-    int16_t state = radio->begin(LORA_FREQ_MHZ, LORA_BW_KHZ, LORA_SF, LORA_CR,
-                                  LORA_SYNC_WORD, LORA_TX_DBM);
+    int16_t state = radio->begin(freq_mhz, LORA_BW_KHZ, LORA_SF, LORA_CR,
+                                  sync_word, LORA_TX_DBM);
     if (state != RADIOLIB_ERR_NONE) {
         ESP_LOGE(TAG, "begin() failed: %d — suspending", state);
         oled_clear();

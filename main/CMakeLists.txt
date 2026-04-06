@@ -1,4 +1,11 @@
-set(SRCS "main.cpp" "EspIdfHal.cpp" "lorawan_provision.c")
+# ESP-MQTT: built-in "mqtt" on IDF 5.x, managed "espressif__mqtt" on IDF 6.x+
+if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
+    set(MQTT_COMPONENT espressif__mqtt)
+else()
+    set(MQTT_COMPONENT mqtt)
+endif()
+
+set(SRCS "main.cpp" "EspIdfHal.cpp" "lorawan_provision.c" "config_console.c")
 
 if(CONFIG_BATEAR_ROLE_DETECTOR)
     list(APPEND SRCS "audio_task.c" "audio_processor.c" "lora_task.cpp")
@@ -20,11 +27,12 @@ idf_component_register(
         esp_wifi
         esp_netif
         esp_event
-        espressif__mqtt
+        ${MQTT_COMPONENT}
         espressif__esp-dsp
         jgromes__radiolib
         mbedtls
         nvs_flash
+        console
 )
 
 # Suppress RadioLib upstream warnings about overloaded virtuals (C++ only)

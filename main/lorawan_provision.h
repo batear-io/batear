@@ -26,8 +26,12 @@ typedef struct {
     uint8_t  dev_eui[LORAWAN_DEV_EUI_LEN];
     uint8_t  app_key[LORAWAN_APP_KEY_LEN];
     uint8_t  device_id;
+    uint32_t lora_freq_khz;
+    uint8_t  lora_sync_word;
     bool     from_nvs;
     bool     device_id_from_nvs;
+    bool     lora_freq_from_nvs;
+    bool     sync_word_from_nvs;
 } lorawan_keys_t;
 
 /**
