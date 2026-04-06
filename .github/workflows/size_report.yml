@@ -36,7 +36,7 @@ jobs:
         uses: thollander/actions-comment-pull-request@v3
         with:
           message: |
-            ## 📉 Firmware Size Report (v1.2.x)
+            ## 📉 Firmware Size Report
             **Current Total Size:** `${{ steps.build.outputs.firmware_size }}`
             
             > [!TIP]
