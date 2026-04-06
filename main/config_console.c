@@ -203,14 +203,14 @@ static int set_nvs_str(const char *ns, const char *key, const char *value)
     }
 
     /* Verify by reading back */
-    char verify[128];
+    char verify[128] = {0};
     size_t vlen = sizeof(verify);
-    err = nvs_open(ns, NVS_READONLY, &h);
-    if (err == ESP_OK) {
-        err = nvs_get_str(h, key, verify, &vlen);
+    esp_err_t verr = nvs_open(ns, NVS_READONLY, &h);
+    if (verr == ESP_OK) {
+        verr = nvs_get_str(h, key, verify, &vlen);
         nvs_close(h);
     }
-    if (err != ESP_OK || strcmp(verify, value) != 0) {
+    if (verr != ESP_OK || strcmp(verify, value) != 0) {
         printf("WARN: write verification failed for %s:%s\n", ns, key);
         return 1;
     }
