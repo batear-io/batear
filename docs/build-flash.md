@@ -53,6 +53,28 @@ idf.py -B build_gateway \
   -p PORT flash monitor
 ```
 
+## 4. Build & flash the Wired Detector
+
+The wired detector uses a LILYGO T-ETH-Lite S3 board with W5500 Ethernet. It sends alerts directly over MQTT — no gateway required.
+
+```bash
+# First time only — set chip target (esp32s3 for T-ETH-Lite S3)
+idf.py -B build_wired_detector \
+  -DSDKCONFIG=build_wired_detector/sdkconfig \
+  -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.wired_detector" \
+  set-target esp32s3
+
+# Build
+idf.py -B build_wired_detector \
+  -DSDKCONFIG=build_wired_detector/sdkconfig \
+  build
+
+# Flash & monitor (replace PORT)
+idf.py -B build_wired_detector \
+  -DSDKCONFIG=build_wired_detector/sdkconfig \
+  -p PORT flash monitor
+```
+
 ## After first setup
 
 Code changes only need rebuild + flash (no `set-target`):
@@ -65,6 +87,10 @@ idf.py -B build_detector -DSDKCONFIG=build_detector/sdkconfig -p PORT flash moni
 # Gateway
 idf.py -B build_gateway -DSDKCONFIG=build_gateway/sdkconfig build
 idf.py -B build_gateway -DSDKCONFIG=build_gateway/sdkconfig -p PORT flash monitor
+
+# Wired Detector
+idf.py -B build_wired_detector -DSDKCONFIG=build_wired_detector/sdkconfig build
+idf.py -B build_wired_detector -DSDKCONFIG=build_wired_detector/sdkconfig -p PORT flash monitor
 ```
 
 !!! tip

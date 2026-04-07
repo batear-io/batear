@@ -10,6 +10,10 @@
  * Gateway mode (CONFIG_BATEAR_ROLE_GATEWAY):
  *   Core 0 │ GatewayTask — LoRa RX + decrypt + OLED + LED
  *   Core 1 │ MqttTask    — WiFi + MQTT publish + HA Discovery
+ *
+ * Wired Detector mode (CONFIG_BATEAR_ROLE_WIRED_DETECTOR):
+ *   Core 0 │ EthMqttTask — W5500 Ethernet + MQTT publish + HA Discovery
+ *   Core 1 │ AudioTask   — I2S mic + FFT harmonic detector
  */
 
 #include <stdio.h>
@@ -34,9 +38,15 @@
 #include "mqtt_task.h"
 #endif
 
+#ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR
+#include "drone_detector.h"
+#include "audio_task.h"
+#include "eth_mqtt_task.h"
+#endif
+
 static const char *TAG = "main";
 
-#ifdef CONFIG_BATEAR_ROLE_DETECTOR
+#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
 QueueHandle_t g_drone_event_queue = NULL;
 #endif
 
@@ -128,6 +138,41 @@ extern "C" void app_main(void)
     }
 
     ESP_LOGI(TAG, "Gateway running — GatewayTask(Core0) + MqttTask(Core1)");
+
+#elif defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
+
+    ESP_LOGI(TAG, "Batear WIRED DETECTOR (dev_id=%u)", lorawan_get_keys()->device_id);
+
+    g_drone_event_queue = xQueueCreate(4, sizeof(DroneEvent_t));
+    if (g_drone_event_queue == NULL) {
+        ESP_LOGE(TAG, "Failed to create event queue — halting");
+        return;
+    }
+
+    static TaskHandle_t audio_h, eth_mqtt_h;
+
+    BaseType_t ret = xTaskCreatePinnedToCore(
+        AudioTask, "AudioTask",
+        6 * 1024 / sizeof(StackType_t),
+        NULL, configMAX_PRIORITIES - 2,
+        &audio_h, 1);
+    if (ret != pdPASS) {
+        ESP_LOGE(TAG, "AudioTask create failed — halting");
+        return;
+    }
+
+    ret = xTaskCreatePinnedToCore(
+        EthMqttTask, "EthMqttTask",
+        6 * 1024 / sizeof(StackType_t),
+        NULL, configMAX_PRIORITIES - 3,
+        &eth_mqtt_h, 0);
+    if (ret != pdPASS) {
+        ESP_LOGE(TAG, "EthMqttTask create failed — halting");
+        vTaskDelete(audio_h);
+        return;
+    }
+
+    ESP_LOGI(TAG, "Wired Detector running — AudioTask(Core1) + EthMqttTask(Core0)");
 
 #else
     #error "Select a role in menuconfig: Batear → Device role"

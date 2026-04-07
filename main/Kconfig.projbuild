@@ -9,6 +9,9 @@ choice BATEAR_BOARD
 
     config BATEAR_BOARD_HELTEC_V4
         bool "Heltec WiFi LoRa 32 V4 (ESP32-S3 + SX1262 + GC1109 FEM + SSD1306)"
+
+    config BATEAR_BOARD_LILYGO_T_ETH_LITE_S3
+        bool "LILYGO T-ETH-Lite S3 (ESP32-S3 + W5500 Ethernet)"
 endchoice
 
 choice BATEAR_ROLE
@@ -20,6 +23,12 @@ choice BATEAR_ROLE
 
     config BATEAR_ROLE_GATEWAY
         bool "Gateway (LoRa RX + OLED + LED)"
+
+    config BATEAR_ROLE_WIRED_DETECTOR
+        bool "Wired Detector (mic + Ethernet + MQTT)"
+        help
+            Detector that sends alerts directly over Ethernet/PoE
+            via MQTT, bypassing the LoRa + Gateway path.
 endchoice
 
 config BATEAR_TELEMETRY_HEARTBEAT_MIN
@@ -42,7 +51,7 @@ config BATEAR_TELEMETRY_HEARTBEAT_MIN
 config BATEAR_AUDIO_PERF_LOG
     bool "Log DSP timing (FFT+PSD, harmonics, us min/max/avg every ~10s)"
     default n
-    depends on BATEAR_ROLE_DETECTOR
+    depends on BATEAR_ROLE_DETECTOR || BATEAR_ROLE_WIRED_DETECTOR
     help
         Uses esp_timer_get_time() around compute_psd and analyze_harmonics.
         Disable for production to reduce serial spam.
@@ -50,7 +59,7 @@ config BATEAR_AUDIO_PERF_LOG
 config BATEAR_I2S_MIC_SLOT_RIGHT
     bool "I2S mic: take RIGHT channel (ICS-43434 L/R pin to VDD)"
     default n
-    depends on BATEAR_ROLE_DETECTOR
+    depends on BATEAR_ROLE_DETECTOR || BATEAR_ROLE_WIRED_DETECTOR
     help
         ICS-43434: L/R to GND = left, L/R to 3.3 V = right.
         On ESP32-S3, RX uses Philips BOTH slots; we deinterleave L/R in software.
@@ -59,7 +68,7 @@ config BATEAR_DEVICE_ID
     int "Device ID (0-255)"
     default 1
     range 0 255
-    depends on BATEAR_ROLE_DETECTOR
+    depends on BATEAR_ROLE_DETECTOR || BATEAR_ROLE_WIRED_DETECTOR
     help
         Unique identifier for this detector. The gateway displays
         which device triggered an alarm.
@@ -75,6 +84,7 @@ config BATEAR_NET_KEY
 config BATEAR_LORA_FREQ
     int "LoRa frequency (kHz)"
     default 915000
+    depends on BATEAR_ROLE_DETECTOR || BATEAR_ROLE_GATEWAY
     help
         Centre frequency in kHz. Common values:
           915000 = 915.0 MHz (US/TW ISM)
@@ -86,23 +96,26 @@ config BATEAR_LORA_SYNC_WORD
     hex "LoRa sync word"
     default 0x12
     range 0x00 0xFF
+    depends on BATEAR_ROLE_DETECTOR || BATEAR_ROLE_GATEWAY
     help
         Network isolation. Devices with different sync words
         cannot hear each other. 0x12 = LoRa private network,
         0x34 = LoRaWAN. Pick any unused value for your network.
 
 menu "MQTT / Home Assistant"
-    depends on BATEAR_ROLE_GATEWAY
+    depends on BATEAR_ROLE_GATEWAY || BATEAR_ROLE_WIRED_DETECTOR
 
     config BATEAR_WIFI_SSID
         string "Wi-Fi SSID"
         default "MyNetwork"
+        depends on BATEAR_ROLE_GATEWAY
         help
             Default Wi-Fi SSID. Overridden by NVS "gateway_cfg" → "wifi_ssid".
 
     config BATEAR_WIFI_PASS
         string "Wi-Fi password"
         default ""
+        depends on BATEAR_ROLE_GATEWAY
         help
             Default Wi-Fi password. Overridden by NVS "gateway_cfg" → "wifi_pass".
 
@@ -111,26 +124,35 @@ menu "MQTT / Home Assistant"
         default "mqtt://homeassistant.local:1883"
         help
             Mosquitto / MQTT broker URI (mqtt:// or mqtts://).
-            Overridden by NVS "gateway_cfg" → "mqtt_url".
+            Overridden by NVS → "mqtt_url".
 
     config BATEAR_MQTT_USER
         string "MQTT username"
         default ""
         help
-            MQTT broker username. Overridden by NVS "gateway_cfg" → "mqtt_user".
+            MQTT broker username. Overridden by NVS → "mqtt_user".
 
     config BATEAR_MQTT_PASS
         string "MQTT password"
         default ""
         help
-            MQTT broker password. Overridden by NVS "gateway_cfg" → "mqtt_pass".
+            MQTT broker password. Overridden by NVS → "mqtt_pass".
 
     config BATEAR_GW_DEVICE_ID
         string "Gateway device ID (for MQTT topics)"
         default "gw01"
+        depends on BATEAR_ROLE_GATEWAY
         help
             Short identifier used in MQTT topics: batear/nodes/<id>/status.
             Overridden by NVS "gateway_cfg" → "device_id".
+
+    config BATEAR_WIRED_DEVICE_ID
+        string "Wired detector device ID (for MQTT topics)"
+        default "wd01"
+        depends on BATEAR_ROLE_WIRED_DETECTOR
+        help
+            Short identifier used in MQTT topics: batear/nodes/<id>/status.
+            Overridden by NVS "wired_cfg" → "device_id".
 
 endmenu
 

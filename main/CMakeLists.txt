@@ -1,11 +1,18 @@
 # ESP-MQTT: built-in "mqtt" on IDF 5.x, managed "espressif__mqtt" on IDF 6.x+
 if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
     set(MQTT_COMPONENT espressif__mqtt)
+    set(W5500_COMPONENT espressif__w5500)
 else()
     set(MQTT_COMPONENT mqtt)
+    set(W5500_COMPONENT "")
 endif()
 
-set(SRCS "main.cpp" "EspIdfHal.cpp" "lorawan_provision.c" "config_console.c")
+set(SRCS "main.cpp" "lorawan_provision.c" "config_console.c")
+
+# RadioLib HAL only needed for LoRa roles
+if(CONFIG_BATEAR_ROLE_DETECTOR OR CONFIG_BATEAR_ROLE_GATEWAY)
+    list(APPEND SRCS "EspIdfHal.cpp")
+endif()
 
 if(CONFIG_BATEAR_ROLE_DETECTOR)
     list(APPEND SRCS "audio_task.c" "audio_processor.c" "lora_task.cpp" "battery.c")
@@ -15,27 +22,47 @@ if(CONFIG_BATEAR_ROLE_GATEWAY)
     list(APPEND SRCS "oled.c" "gateway_task.cpp" "mqtt_task.cpp")
 endif()
 
+if(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
+    list(APPEND SRCS "audio_task.c" "audio_processor.c" "eth_mqtt_task.cpp")
+endif()
+
+set(PRIV_DEPS
+    esp_driver_i2s
+    esp_driver_i2c
+    esp_driver_spi
+    esp_driver_gpio
+    esp_timer
+    esp_wifi
+    esp_netif
+    esp_event
+    esp_eth
+    ${MQTT_COMPONENT}
+    espressif__esp-dsp
+    mbedtls
+    nvs_flash
+    console
+)
+
+if(CONFIG_BATEAR_ROLE_DETECTOR OR CONFIG_BATEAR_ROLE_GATEWAY)
+    list(APPEND PRIV_DEPS jgromes__radiolib)
+endif()
+
+# battery.c uses adc_oneshot + adc_cali; lora_task.cpp uses esp_app_get_description().
+if(CONFIG_BATEAR_ROLE_DETECTOR)
+    list(APPEND PRIV_DEPS esp_adc esp_app_format)
+endif()
+
+if(CONFIG_BATEAR_ROLE_WIRED_DETECTOR AND W5500_COMPONENT)
+    list(APPEND PRIV_DEPS ${W5500_COMPONENT})
+endif()
+
 idf_component_register(
     SRCS ${SRCS}
     INCLUDE_DIRS "."
-    PRIV_REQUIRES
-        esp_driver_i2s
-        esp_driver_i2c
-        esp_driver_spi
-        esp_driver_gpio
-        esp_adc
-        esp_app_format
-        esp_timer
-        esp_wifi
-        esp_netif
-        esp_event
-        ${MQTT_COMPONENT}
-        espressif__esp-dsp
-        jgromes__radiolib
-        mbedtls
-        nvs_flash
-        console
+    PRIV_REQUIRES ${PRIV_DEPS}
 )
 
 # Suppress RadioLib upstream warnings about overloaded virtuals (C++ only)
-target_compile_options(${COMPONENT_LIB} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wno-overloaded-virtual>)
+if(CONFIG_BATEAR_ROLE_DETECTOR OR CONFIG_BATEAR_ROLE_GATEWAY)
+    target_compile_options(${COMPONENT_LIB} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wno-overloaded-virtual>)
+endif()

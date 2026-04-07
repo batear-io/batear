@@ -1,0 +1,16 @@
+# Board (determines set-target chip and flash size)
+CONFIG_BATEAR_BOARD_LILYGO_T_ETH_LITE_S3=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+
+# Role
+CONFIG_BATEAR_ROLE_WIRED_DETECTOR=y
+CONFIG_BATEAR_DEVICE_ID=1
+
+# Network key (shared with LoRa detectors/gateway if co-deployed)
+CONFIG_BATEAR_NET_KEY="DEADBEEFCAFEBABE13374200F00DAA55"
+
+# MQTT / Home Assistant (override via NVS "wired_cfg" namespace)
+CONFIG_BATEAR_MQTT_BROKER_URL="mqtt://{BROKER_IP}:1883"
+CONFIG_BATEAR_MQTT_USER=""
+CONFIG_BATEAR_MQTT_PASS=""
+CONFIG_BATEAR_WIRED_DEVICE_ID="wd01"

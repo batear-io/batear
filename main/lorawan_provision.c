@@ -104,10 +104,18 @@ esp_err_t lorawan_provision_init(void)
     }
 
     if (!got_freq) {
+#ifdef CONFIG_BATEAR_LORA_FREQ
         s_keys.lora_freq_khz = (uint32_t)CONFIG_BATEAR_LORA_FREQ;
+#else
+        s_keys.lora_freq_khz = 915000;
+#endif
     }
     if (!got_sw) {
+#ifdef CONFIG_BATEAR_LORA_SYNC_WORD
         s_keys.lora_sync_word = (uint8_t)CONFIG_BATEAR_LORA_SYNC_WORD;
+#else
+        s_keys.lora_sync_word = 0x12;
+#endif
     }
 
     s_keys.from_nvs = got_eui && got_key;
