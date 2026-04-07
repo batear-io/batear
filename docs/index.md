@@ -15,7 +15,6 @@ hide:
 
 [![Firmware Build](https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml/badge.svg)](https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml)
 [![Static Analysis](https://github.com/batear-io/batear/actions/workflows/cppcheck.yml/badge.svg)](https://github.com/batear-io/batear/actions/workflows/cppcheck.yml)
-[![Firmware Size](https://github.com/batear-io/batear/actions/workflows/size_report.yml/badge.svg)](https://github.com/batear-io/batear/actions/workflows/size_report.yml)
 
 <br>
 
