@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml"><img src="https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml/badge.svg" alt="Firmware Build"></a><a href="https://github.com/batear-io/batear/actions/workflows/cppcheck.yml"><img src="https://github.com/batear-io/batear/actions/workflows/cppcheck.yml/badge.svg" alt="Static Analysis"></a><a href="https://github.com/batear-io/batear/actions/workflows/size_report.yml"><img src="https://github.com/batear-io/batear/actions/workflows/size_report.yml/badge.svg" alt="Firmware Size"></a>
+  <a href="https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml"><img src="https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml/badge.svg" alt="Firmware Build"></a><a href="https://github.com/batear-io/batear/actions/workflows/cppcheck.yml"><img src="https://github.com/batear-io/batear/actions/workflows/cppcheck.yml/badge.svg" alt="Static Analysis"></a>
 </p>
 
   <br><br>
