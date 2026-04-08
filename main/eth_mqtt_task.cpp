@@ -433,9 +433,9 @@ extern "C" void EthMqttTask(void *pvParameters)
                     "\"timestamp\":%lld"
                 "}",
                 (ev.type == DRONE_EVENT_ALARM) ? "true" : "false",
-                det_id,
-                rms_to_db(ev.rms), (unsigned)ev.f0_bin,
-                tx_seq++,
+                (unsigned)det_id,
+                (unsigned)rms_to_db(ev.rms), (unsigned)ev.f0_bin,
+                (unsigned)tx_seq++,
                 (double)ev.peak_ratio,
                 (long long)ts);
 
