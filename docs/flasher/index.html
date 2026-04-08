@@ -333,6 +333,14 @@
           <div class="hint">Short identifier for MQTT topics &mdash; e.g. batear/nodes/wd01/status</div>
         </div>
 
+        <hr class="cfg-divider">
+        <div class="section-title">// REST API / OTA</div>
+        <div class="cfg-field">
+          <label>HTTP Auth Token</label>
+          <input type="password" id="wdHttpToken" placeholder="(optional — empty = no auth)" autocomplete="off">
+          <div class="hint">Bearer token for POST endpoints (/api/ota, /api/config, /api/reboot). Leave empty to allow unauthenticated access.</div>
+        </div>
+
         <!-- Static IP (optional) -->
         <label class="static-ip-toggle">
           <input type="checkbox" id="staticIpEnable">
@@ -464,6 +472,18 @@
           </div>
         </details>
         <details class="faq">
+          <summary>How do I update the wired detector firmware remotely?</summary>
+          <div class="answer">
+            The wired detector includes a built-in REST API on port <code>8080</code>.
+            Upload a new firmware binary with:
+            <code>curl -X POST --data-binary @firmware.bin http://&lt;ip&gt;:8080/api/ota</code>.
+            If you set an HTTP auth token, add
+            <code>-H "Authorization: Bearer &lt;token&gt;"</code>.
+            The device reboots automatically after a successful upload, and rolls back if the
+            new firmware fails to start.
+          </div>
+        </details>
+        <details class="faq">
           <summary>How do I connect the gateway to Home Assistant?</summary>
           <div class="answer">
             Select the <strong>Gateway</strong> tab and fill
@@ -552,6 +572,7 @@
     const wdMqttUser   = document.getElementById("wdMqttUser");
     const wdMqttPass   = document.getElementById("wdMqttPass");
     const wdWiredId    = document.getElementById("wdWiredId");
+    const wdHttpToken  = document.getElementById("wdHttpToken");
     const staticIpEnable = document.getElementById("staticIpEnable");
     const staticIpFields = document.getElementById("staticIpFields");
     const wdEthIp      = document.getElementById("wdEthIp");
@@ -638,7 +659,8 @@
       if (wdMqttUrl.value.trim())  cfg.mqttUrl   = wdMqttUrl.value.trim();
       if (wdMqttUser.value.trim()) cfg.mqttUser  = wdMqttUser.value.trim();
       if (wdMqttPass.value)        cfg.mqttPass  = wdMqttPass.value;
-      if (wdWiredId.value.trim())  cfg.deviceId  = wdWiredId.value.trim();
+      if (wdWiredId.value.trim())    cfg.deviceId  = wdWiredId.value.trim();
+      if (wdHttpToken.value.trim()) cfg.httpToken = wdHttpToken.value.trim();
       if (staticIpEnable.checked) {
         if (wdEthIp.value.trim())   cfg.ethIp   = wdEthIp.value.trim();
         if (wdEthGw.value.trim())   cfg.ethGw   = wdEthGw.value.trim();
@@ -790,7 +812,7 @@
     for (const el of [gwWifiSsid, gwWifiPass, gwMqttUrl, gwMqttUser, gwMqttPass, gwDeviceId]) {
       el.addEventListener("input", validateAndUpdate);
     }
-    for (const el of [wdDeviceId, wdMqttUrl, wdMqttUser, wdMqttPass, wdWiredId, wdEthIp, wdEthGw, wdEthMask, wdEthDns]) {
+    for (const el of [wdDeviceId, wdMqttUrl, wdMqttUser, wdMqttPass, wdWiredId, wdHttpToken, wdEthIp, wdEthGw, wdEthMask, wdEthDns]) {
       el.addEventListener("input", validateAndUpdate);
     }
 

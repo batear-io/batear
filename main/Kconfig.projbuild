@@ -189,4 +189,25 @@ menu "Ethernet (static IP)"
 
 endmenu
 
+menu "REST API / OTA"
+    depends on BATEAR_ROLE_WIRED_DETECTOR
+
+    config BATEAR_HTTP_PORT
+        int "HTTP server port"
+        default 8080
+        range 1 65535
+        help
+            Port for the built-in REST API (device info, OTA, config).
+
+    config BATEAR_HTTP_AUTH_TOKEN
+        string "Bearer auth token (empty = no auth on POST endpoints)"
+        default ""
+        help
+            If set, all POST endpoints (/api/ota, /api/config, /api/reboot)
+            require an Authorization header: "Bearer <token>".
+            GET endpoints are always unauthenticated.
+            Overridden by NVS "wired_cfg" → "http_token".
+
+endmenu
+
 endmenu

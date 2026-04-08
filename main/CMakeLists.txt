@@ -23,7 +23,7 @@ if(CONFIG_BATEAR_ROLE_GATEWAY)
 endif()
 
 if(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
-    list(APPEND SRCS "audio_task.c" "audio_processor.c" "eth_mqtt_task.cpp")
+    list(APPEND SRCS "audio_task.c" "audio_processor.c" "eth_mqtt_task.cpp" "http_api.cpp")
 endif()
 
 set(PRIV_DEPS
@@ -52,8 +52,11 @@ if(CONFIG_BATEAR_ROLE_DETECTOR)
     list(APPEND PRIV_DEPS esp_adc esp_app_format)
 endif()
 
-if(CONFIG_BATEAR_ROLE_WIRED_DETECTOR AND W5500_COMPONENT)
-    list(APPEND PRIV_DEPS ${W5500_COMPONENT})
+if(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
+    list(APPEND PRIV_DEPS esp_http_server app_update)
+    if(W5500_COMPONENT)
+        list(APPEND PRIV_DEPS ${W5500_COMPONENT})
+    endif()
 endif()
 
 idf_component_register(

@@ -42,6 +42,7 @@
 #include "drone_detector.h"
 #include "audio_task.h"
 #include "eth_mqtt_task.h"
+#include "esp_ota_ops.h"
 #endif
 
 static const char *TAG = "main";
@@ -142,6 +143,10 @@ extern "C" void app_main(void)
 #elif defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
 
     ESP_LOGI(TAG, "Batear WIRED DETECTOR (dev_id=%u)", lorawan_get_keys()->device_id);
+
+    /* Confirm OTA rollback — if this boot is after an OTA update, mark the
+       firmware valid so the bootloader won't roll back on next reboot. */
+    esp_ota_mark_app_valid_cancel_rollback();
 
     g_drone_event_queue = xQueueCreate(4, sizeof(DroneEvent_t));
     if (g_drone_event_queue == NULL) {

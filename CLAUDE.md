@@ -66,6 +66,8 @@ Key parameters in sdkconfig role files:
 | `CONFIG_BATEAR_ETH_GATEWAY` | Default gateway for static IP. (overridden by NVS) |
 | `CONFIG_BATEAR_ETH_NETMASK` | Subnet mask (default 255.255.255.0). (overridden by NVS) |
 | `CONFIG_BATEAR_ETH_DNS` | DNS server (empty = use gateway). (overridden by NVS) |
+| `CONFIG_BATEAR_HTTP_PORT` | REST API port (wired detector only, default 8080) |
+| `CONFIG_BATEAR_HTTP_AUTH_TOKEN` | Bearer token for POST endpoints (empty = no auth). (overridden by NVS) |
 | `CONFIG_BATEAR_TELEMETRY_HEARTBEAT_MIN` | LoRa detector only, 1–60. Silent-period telemetry interval in minutes (default 30). Jittered ±10% in firmware. |
 
 ## Project Structure
@@ -91,6 +93,7 @@ batear/
 │   ├── battery.c/.h            # [detector] VBAT ADC + divider gating
 │   ├── lora_task.cpp/.h        # [detector] LoRa TX (event + heartbeat, jittered)
 │   ├── eth_mqtt_task.cpp/.h    # [wired]    W5500 Ethernet + MQTT + HA Discovery
+│   ├── http_api.cpp/.h         # [wired]    REST API + OTA (GET info/status, POST ota/config/reboot)
 │   ├── gateway_task.cpp/.h     # [gateway]  LoRa RX + OLED + LED
 │   ├── mqtt_task.cpp/.h        # [gateway]  WiFi + MQTT + HA Discovery
 │   ├── oled.c/.h               # [gateway]  SSD1306 128x64 driver

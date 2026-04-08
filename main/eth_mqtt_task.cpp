@@ -12,6 +12,7 @@
  */
 
 #include "eth_mqtt_task.h"
+#include "http_api.h"
 #include "drone_detector.h"
 #include "pin_config.h"
 #include "lorawan_provision.h"
@@ -436,6 +437,7 @@ extern "C" void EthMqttTask(void *pvParameters)
     }
 
     mqtt_start();
+    http_api_start();
 
     DroneEvent_t ev;
     char json[256];
@@ -455,6 +457,16 @@ extern "C" void EthMqttTask(void *pvParameters)
 
             int64_t ts = esp_timer_get_time() / 1000000LL;
             uint8_t det_id = lorawan_get_keys()->device_id;
+
+            HttpDroneStatus_t hst = {
+                .drone_detected = (ev.type == DRONE_EVENT_ALARM),
+                .detector_id    = det_id,
+                .rms_db         = rms_to_db(ev.rms),
+                .f0_bin         = ev.f0_bin,
+                .confidence     = ev.peak_ratio,
+                .timestamp      = ts,
+            };
+            http_api_update_status(&hst);
 
             snprintf(json, sizeof(json),
                 "{"

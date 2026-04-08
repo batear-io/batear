@@ -321,6 +321,7 @@ export function generateRandomKey(bytes = 16) {
  * @param {string}        [wiredCfg.ethGw]
  * @param {string}        [wiredCfg.ethMask]
  * @param {string}        [wiredCfg.ethDns]
+ * @param {string}        [wiredCfg.httpToken]
  * @returns {Uint8Array} 8192-byte NVS image (2 pages)
  */
 export function generateWiredNvsImage(devEui, appKey, deviceId, wiredCfg) {
@@ -370,7 +371,8 @@ export function generateWiredNvsImage(devEui, appKey, deviceId, wiredCfg) {
   if (wiredCfg.ethIp)    idx = writeStringEntry(p1, idx, 2, "eth_ip",    wiredCfg.ethIp);
   if (wiredCfg.ethGw)    idx = writeStringEntry(p1, idx, 2, "eth_gw",    wiredCfg.ethGw);
   if (wiredCfg.ethMask)  idx = writeStringEntry(p1, idx, 2, "eth_mask",  wiredCfg.ethMask);
-  if (wiredCfg.ethDns)   idx = writeStringEntry(p1, idx, 2, "eth_dns",   wiredCfg.ethDns);
+  if (wiredCfg.ethDns)    idx = writeStringEntry(p1, idx, 2, "eth_dns",    wiredCfg.ethDns);
+  if (wiredCfg.httpToken) idx = writeStringEntry(p1, idx, 2, "http_token", wiredCfg.httpToken);
 
   return image;
 }

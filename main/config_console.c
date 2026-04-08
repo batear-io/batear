@@ -197,6 +197,7 @@ static int cmd_show(int argc, char **argv)
             print_nvs_str(h, "eth_gw",    "eth_gw");
             print_nvs_str(h, "eth_mask",  "eth_mask");
             print_nvs_str(h, "eth_dns",   "eth_dns");
+            print_nvs_str(h, "http_token","http_token");
             nvs_close(h);
         } else {
             printf("  (namespace not found — using Kconfig defaults)\n");
@@ -348,6 +349,7 @@ static int cmd_set(int argc, char **argv)
         printf("  eth_gw      — default gateway\n");
         printf("  eth_mask    — subnet mask (default 255.255.255.0)\n");
         printf("  eth_dns     — DNS server (empty = use gateway)\n");
+        printf("  http_token  — Bearer auth token for REST API (empty = no auth)\n");
 #endif
         return 1;
     }
@@ -428,6 +430,8 @@ static int cmd_set(int argc, char **argv)
         return set_nvs_str("wired_cfg", "eth_mask", value);
     if (strcmp(key, "eth_dns") == 0)
         return set_nvs_str("wired_cfg", "eth_dns", value);
+    if (strcmp(key, "http_token") == 0)
+        return set_nvs_str("wired_cfg", "http_token", value);
 #endif
 
     printf("Error: unknown key '%s'\n", key);
