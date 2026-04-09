@@ -60,6 +60,7 @@ Stop checking serial monitors. Batear brings drone detection directly to your da
 
 > "Batear bridges the gap between complex signal processing and simple home automation."
 
+---
 
 ## 📖 Documentation
 
@@ -97,6 +98,8 @@ Full documentation is available at **[batear.io](https://docs.batear.io)**.
                                                       └──────────────────────┘
 ```
 
+---
+
 ## ⚡ Quick Start (Build from Source)
 
 ```bash
@@ -116,6 +119,7 @@ idf.py -B build_detector -DSDKCONFIG=build_detector/sdkconfig -p PORT flash moni
 
 See the [full build guide](https://docs.batear.io/build-flash/) for gateway setup and detailed instructions.
 
+---
 
 ## 💰 Support & Sponsorship (501(c)(3))
 Batear is officially fiscally hosted by the **Open Source Collective (OSC)**, a US-based 501(c)(3) non-profit organization. 
