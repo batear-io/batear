@@ -2,20 +2,38 @@
   <img src="icon.png" alt="Batear Logo" width="200"/>
   
   <h1>Batear</h1>
-  <p><strong>A ultra-low-cost, edge-only acoustic drone detector on ESP32-S3 with encrypted LoRa alerting.</strong></p>
+  <p><strong>An ultra-low-cost, edge-only acoustic drone detector on ESP32-S3 with encrypted LoRa alerting.</strong></p>
 
 <p align="center">
-  <a href="https://hackaday.com/2026/03/23/acoustic-drone-detection-on-the-cheap-with-esp32/"><img src="https://img.shields.io/badge/Featured%20on-Hackaday-black?logo=hackaday" alt="Featured on Hackaday" style="display:inline-block;"></a><a href="https://github.com/TN666/batear/stargazers"><img src="https://img.shields.io/github/stars/TN666/batear?style=flat-square" alt="Stars" style="display:inline-block;"></a><a href="https://github.com/TN666/batear/blob/main/LICENSE"><img src="https://img.shields.io/github/license/TN666/batear?style=flat-square" alt="License" style="display:inline-block;"></a>
+  <a href="https://opencollective.com/batear"><img src="https://img.shields.io/opencollective/all/batear?label=Sponsors&color=blue" alt="Sponsors"></a>
+  <a href="https://opencollective.com/batear"><img src="https://img.shields.io/badge/501(c)(3)-Tax%20Deductible-brightgreen" alt="Tax Deductible"></a>
+  <a href="https://hackaday.com/2026/03/23/acoustic-drone-detection-on-the-cheap-with-esp32/"><img src="https://img.shields.io/badge/Featured%20on-Hackaday-black?logo=hackaday" alt="Featured on Hackaday"></a>
+  <a href="https://github.com/batear-io/batear/stargazers"><img src="https://img.shields.io/github/stars/batear-io/batear?style=flat-square" alt="Stars"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml"><img src="https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml/badge.svg" alt="Firmware Build"></a><a href="https://github.com/batear-io/batear/actions/workflows/cppcheck.yml"><img src="https://github.com/batear-io/batear/actions/workflows/cppcheck.yml/badge.svg" alt="Static Analysis"></a>
+  <a href="https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml"><img src="https://github.com/batear-io/batear/actions/workflows/esp-idf-build.yml/badge.svg" alt="Firmware Build"></a>
+  <a href="https://github.com/batear-io/batear/actions/workflows/cppcheck.yml"><img src="https://github.com/batear-io/batear/actions/workflows/cppcheck.yml/badge.svg" alt="Static Analysis"></a>
 </p>
 
-  <br><br>
+  <br>
   <p><em>"Built for defense, hoping it becomes unnecessary. We believe in a world where no one needs to fear the sky."</em></p>
 </div>
-<br><br>
+
+---
+
+## 🛡️ Support the Mission (501(c)(3) Tax Deductible)
+
+Batear is officially fiscally hosted by the **Open Source Collective (OSC)**. Your contribution directly supports the deployment of civil defense technology where it is needed most.
+
+* 🇺🇦 **Field Testing in Ukraine**: We are partnering with local experts to verify Batear in active EW (Electronic Warfare) environments.
+* 🔬 **Hardware R&D**: Funding allows us to procure high-precision sensors (ICS-43434) and PoE-capable hardware for professional-grade reliability.
+* 🏢 **Corporate Matching**: Since we are a **501(c)(3)** non-profit project, check if your employer matches your donation!
+* 💎 **100% Transparent**: View every single receipt and transaction on our [Public Ledger](https://opencollective.com/batear#category-BUDGET).
+
+[**💖 Become a Sponsor on Open Collective**](https://opencollective.com/batear)
+
+---
 
 <div align="center">
   <a href="https://youtu.be/_OXP_MpExm8?si=sbgMLhAHPr7uCMk2">
@@ -25,8 +43,6 @@
   <em>▶️ Click to watch the bench test demo</em>
 </div>
 <br>
-
----
 
 Drones are an increasing threat to homes, farms, and communities — and effective detection has traditionally required expensive radar or camera systems. **Batear changes that.**
 
@@ -121,20 +137,11 @@ See the [full build guide](https://docs.batear.io/build-flash/) for gateway setu
 
 ---
 
-## 💰 Support & Sponsorship (501(c)(3))
-Batear is officially fiscally hosted by the **Open Source Collective (OSC)**, a US-based 501(c)(3) non-profit organization. 
-
-**Why support us?**
-* 🇺🇸 **Tax Deductible:** Donations are tax-deductible for US taxpayers.
-* 🏢 **Corporate Matching:** Check if your employer supports donation matching via OSC.
-* 🛡️ **Transparency:** 100% of funds are used for hardware R&D and field testing. All expenses are publicly audited on our [Open Collective page](https://opencollective.com/batear).
-
-[👉 **Become a Sponsor**](https://opencollective.com/batear)
-
----
-
-## 👤 Author
+## 👤 Maintainers
 
 <a href="https://github.com/TN666">
   <img src="https://images.weserv.nl/?url=https://github.com/TN666.png?v=4&w=200&h=200&fit=cover&mask=circle&maxage=7d" width="100">
 </a>
+
+<p><strong>Batear is a community-driven project. We welcome contributions, whether through code, field data, or financial sponsorship.</strong></p>
+
