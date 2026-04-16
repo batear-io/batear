@@ -110,3 +110,54 @@ When alarm is active, serial prints:
 Tune detection in `audio_task.c` (`HARM_F0_MIN/MAX_HZ`, `CONF_ON/OFF`, `SUSTAIN_FRAMES_*`, `RMS_MIN`, `EMA_ALPHA`)
 and `audio_processor.c` (`AUDIO_PROC_HARM_PEAK_MIN_SNR`, `AUDIO_PROC_HARM_MIN_H2/H3`).
 Enable `BATEAR_AUDIO_PERF_LOG` in menuconfig for per-frame DSP timing.
+
+## Release Tagging
+
+Tags MUST be **annotated** (`git tag -a`), never lightweight. Format: `v<MAJOR>.<MINOR>.<PATCH>`.
+
+### Tag annotation format
+
+```
+v1.3.2: Short summary under 60 chars
+
+Bug fixes:
+- Fix I2S read tight loop that could spin-lock Core 1
+
+Hardware:
+- Add Heltec WiFi LoRa 32 V4 as supported board
+
+CI:
+- Parallelize detector and gateway builds
+```
+
+- Title line: `v<VERSION>: <summary>`
+- Group changes under: `Bug fixes`, `Features`, `Hardware`, `CI`, `Docs`, `Breaking changes` (omit empty categories)
+- Each bullet starts with a verb: Fix, Add, Remove, Update, Refactor
+- Cover ALL non-merge commits since previous tag: `git log --oneline --no-merges <prev_tag>..HEAD`
+
+### Semver
+
+| Bump | When |
+|------|------|
+| PATCH | Bug fixes, docs, CI — no new features |
+| MINOR | New features, new board support, new config options |
+| MAJOR | Breaking changes (protocol, packet format, NVS schema) |
+
+### CI integration
+
+`.github/workflows/esp-idf-build.yml` reacts to tags:
+
+- **`v*` tag push** → build → GitHub Release with tag annotation as body, marked `latest`
+- **`main` push** → build → update `firmware-latest` pre-release
+
+Tag on `main` or on a branch **after** merging, so `firmware-latest` and the versioned release stay in sync.
+
+### Checklist
+
+```bash
+git tag -l 'v*' --sort=-v:refname | head -1        # previous tag
+git log --oneline --no-merges <prev_tag>..HEAD      # changes to document
+git tag -a v<X.Y.Z> -m "<annotation>"               # create
+git tag -l -n99 v<X.Y.Z>                            # verify
+git push origin v<X.Y.Z>                            # push
+```
