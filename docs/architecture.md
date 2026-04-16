@@ -31,7 +31,7 @@ The gateway forwards detection events to Home Assistant via MQTT over Wi-Fi (see
 
 | Role | Core 0 | Core 1 |
 |:---|:---|:---|
-| Detector | AudioTask — I2S mic + FFT + detection | LoRaTask — encrypt + SX1262 TX |
+| Detector | LoRaTask — encrypt + SX1262 TX | AudioTask — I2S mic + FFT + detection |
 | Gateway | GatewayTask — LoRa RX + decrypt + OLED + LED | MqttTask — Wi-Fi + MQTT publish + HA Discovery |
 
 GatewayTask sends `MqttEvent_t` items to MqttTask via a FreeRTOS queue, so LoRa reception is never blocked by network I/O.
