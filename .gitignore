@@ -5,4 +5,5 @@ dependencies.lock
 managed_components/
 build_gateway/
 build_detector/
+build_wired_detector/
 site/

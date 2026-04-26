@@ -27,6 +27,7 @@
 #include "esp_eth_phy_w5500.h"
 #include "esp_event.h"
 #include "esp_netif.h"
+#include "esp_mac.h"
 #include "esp_timer.h"
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
@@ -209,6 +210,17 @@ static bool eth_init(void)
     esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
     esp_eth_handle_t eth_handle = NULL;
     ESP_ERROR_CHECK(esp_eth_driver_install(&config, &eth_handle));
+
+    /* W5500 has no built-in MAC: derive a locally-administered address from
+     * the ESP32 base MAC so DHCP servers/switches see a valid Ethernet ID.
+     * Without this the W5500 transmits with 00:00:00:00:00:00 and DHCP
+     * silently fails. */
+    uint8_t eth_mac[6] = {};
+    ESP_ERROR_CHECK(esp_read_mac(eth_mac, ESP_MAC_ETH));
+    ESP_ERROR_CHECK(esp_eth_ioctl(eth_handle, ETH_CMD_S_MAC_ADDR, eth_mac));
+    ESP_LOGI(TAG, "W5500 MAC: %02x:%02x:%02x:%02x:%02x:%02x",
+             eth_mac[0], eth_mac[1], eth_mac[2],
+             eth_mac[3], eth_mac[4], eth_mac[5]);
 
     /* Attach to TCP/IP stack */
     esp_eth_netif_glue_handle_t glue = esp_eth_new_netif_glue(eth_handle);
