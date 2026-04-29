@@ -177,6 +177,17 @@ static bool eth_init(void)
     };
     esp_netif_t *netif = esp_netif_new(&netif_cfg);
 
+    /* W5500 driver registers an ISR on its INT pin via gpio_isr_handler_add.
+     * That requires the global GPIO ISR service to already be installed.
+     * Treat ESP_ERR_INVALID_STATE as success in case another component
+     * (e.g. RadioLib HAL on co-deployed builds) installed it first. */
+    {
+        esp_err_t err = gpio_install_isr_service(0);
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            ESP_ERROR_CHECK(err);
+        }
+    }
+
     /* SPI bus for W5500 */
     spi_bus_config_t buscfg = {};
     buscfg.miso_io_num   = PIN_ETH_MISO;
