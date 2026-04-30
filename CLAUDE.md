@@ -51,7 +51,7 @@ Key parameters in sdkconfig role files:
 |---|---|
 | `CONFIG_BATEAR_BOARD_*` | Board selection (determines GPIO mapping) |
 | `CONFIG_ESPTOOLPY_FLASHSIZE_*` | Flash size (must match board hardware) |
-| `CONFIG_BATEAR_NET_KEY` | 32-char hex AES-128 key. Must match on all devices. (overridden by NVS) |
+| `CONFIG_BATEAR_NET_KEY` | 32-char hex AES-128 LoRa key. Detector + Gateway only — must match on all LoRa devices. Wired Detector role does not need this key. (overridden by NVS) |
 | `CONFIG_BATEAR_LORA_FREQ` | LoRa frequency in kHz (detector/gateway only). (overridden by NVS) |
 | `CONFIG_BATEAR_LORA_SYNC_WORD` | LoRa network isolation (detector/gateway only). (overridden by NVS) |
 | `CONFIG_BATEAR_DEVICE_ID` | Detector/wired detector only, 0–255. (overridden by NVS) |

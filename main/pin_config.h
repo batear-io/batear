@@ -124,6 +124,10 @@
 
 /* -------------------------------------------------------------------
  * LoRa network config (board-independent)
+ *
+ * Only the Detector and Gateway roles encrypt over LoRa; CONFIG_BATEAR_NET_KEY
+ * is gated to those roles in Kconfig, so the BATEAR_NET_KEY hex-array macro
+ * is only emitted when that string is present in sdkconfig.
  * ----------------------------------------------------------------- */
 
 #define _HEX_NIBBLE(c) \
@@ -134,6 +138,7 @@
 #define _HEX_BYTE(s, i) \
     (uint8_t)((_HEX_NIBBLE((s)[2*(i)]) << 4) | _HEX_NIBBLE((s)[2*(i)+1]))
 
+#ifdef CONFIG_BATEAR_NET_KEY
 #define BATEAR_NET_KEY { \
     _HEX_BYTE(CONFIG_BATEAR_NET_KEY, 0), _HEX_BYTE(CONFIG_BATEAR_NET_KEY, 1), \
     _HEX_BYTE(CONFIG_BATEAR_NET_KEY, 2), _HEX_BYTE(CONFIG_BATEAR_NET_KEY, 3), \
@@ -144,3 +149,4 @@
     _HEX_BYTE(CONFIG_BATEAR_NET_KEY, 12), _HEX_BYTE(CONFIG_BATEAR_NET_KEY, 13), \
     _HEX_BYTE(CONFIG_BATEAR_NET_KEY, 14), _HEX_BYTE(CONFIG_BATEAR_NET_KEY, 15), \
 }
+#endif

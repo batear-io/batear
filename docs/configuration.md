@@ -63,9 +63,6 @@ CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_BATEAR_ROLE_WIRED_DETECTOR=y
 CONFIG_BATEAR_DEVICE_ID=1
 
-# Network key (shared with LoRa devices if co-deployed)
-CONFIG_BATEAR_NET_KEY="DEADBEEFCAFEBABE13374200F00DAA55"
-
 # MQTT / Home Assistant (override via NVS "wired_cfg" namespace)
 CONFIG_BATEAR_MQTT_BROKER_URL="mqtt://{BROKER_IP}:1883"
 CONFIG_BATEAR_MQTT_USER=""
@@ -80,7 +77,7 @@ CONFIG_BATEAR_ETH_DNS=""
 ```
 
 !!! note
-    The wired detector does not use LoRa, Wi-Fi, or a gateway. It connects directly to the MQTT broker over Ethernet.
+    The wired detector does not use LoRa, Wi-Fi, or a gateway. It connects directly to the MQTT broker over Ethernet, so it does **not** require the AES-128 `CONFIG_BATEAR_NET_KEY` (that key only secures the LoRa link between Detectors and the Gateway). For transport encryption to the broker, use a `mqtts://` URL.
 
 !!! tip
     To use a static IP, set `CONFIG_BATEAR_ETH_STATIC_IP` at build time or use `set eth_ip 192.168.1.50` via the serial console.  Leave it blank for DHCP (the default).
@@ -91,7 +88,7 @@ CONFIG_BATEAR_ETH_DNS=""
 |:---|:---|
 | `CONFIG_BATEAR_BOARD_*` | Board selection — determines GPIO mapping and `set-target` chip. |
 | `CONFIG_ESPTOOLPY_FLASHSIZE_*` | Flash size — must match your board's flash chip. |
-| `CONFIG_BATEAR_NET_KEY` | 128-bit AES-GCM key (32 hex chars). **Must match** between all devices. Overridden by NVS. |
+| `CONFIG_BATEAR_NET_KEY` | 128-bit AES-GCM key for the LoRa link (32 hex chars). **Must match** between all Detectors and the Gateway. **Detector / Gateway only** — not used by the Wired Detector. Overridden by NVS. |
 | `CONFIG_BATEAR_LORA_FREQ` | Centre frequency in kHz: `915000` (US/TW), `868000` (EU), `923000` (AS). Overridden by NVS. |
 | `CONFIG_BATEAR_LORA_SYNC_WORD` | Network isolation byte. Different values = invisible to each other. Overridden by NVS. |
 | `CONFIG_BATEAR_DEVICE_ID` | Detector / wired detector. Unique ID (0–255). Overridden by NVS. |
@@ -133,18 +130,16 @@ batear>
 
 ### Available Keys
 
-**All roles:**
-
-| Key | Format | Example | NVS namespace |
-|:---|:---|:---|:---|
-| `net_key` | 32 hex chars | `set net_key A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6` | `lora_cfg` |
-
 **Detector and gateway only (LoRa):**
 
 | Key | Format | Example | NVS namespace |
 |:---|:---|:---|:---|
+| `net_key` | 32 hex chars | `set net_key A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6` | `lora_cfg` |
 | `lora_freq` | kHz integer | `set lora_freq 868000` | `lora_cfg` |
 | `sync_word` | 2 hex chars | `set sync_word 34` | `lora_cfg` |
+
+!!! note
+    `net_key` is the AES-128 LoRa pre-shared key. The Wired Detector role does not transmit over LoRa, so it does not expose `net_key` from its serial console — use `mqtts://` if you need transport encryption to the broker.
 
 **Detector and wired detector:**
 
@@ -240,7 +235,7 @@ This lets you set defaults at compile time and override per-device via the [seri
 
 | NVS namespace | NVS key | Kconfig fallback | Roles | Description |
 |:---|:---|:---|:---|:---|
-| `lora_cfg` | `app_key` | `CONFIG_BATEAR_NET_KEY` | All | AES-128 network key (16-byte blob) |
+| `lora_cfg` | `app_key` | `CONFIG_BATEAR_NET_KEY` | Detector, Gateway | AES-128 LoRa network key (16-byte blob). Wired Detector ignores it. |
 | `lora_cfg` | `lora_freq` | `CONFIG_BATEAR_LORA_FREQ` | Detector, Gateway | LoRa frequency in kHz |
 | `lora_cfg` | `sync_word` | `CONFIG_BATEAR_LORA_SYNC_WORD` | Detector, Gateway | LoRa sync word |
 | `lora_cfg` | `device_id` | `CONFIG_BATEAR_DEVICE_ID` | Detector, Wired | Detector ID, 0–255 |
