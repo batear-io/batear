@@ -6,9 +6,12 @@
  *   set <key> <value> — write a config value to NVS (reboot to apply)
  *   reboot            — restart the device
  *
- * Detector keys:  device_id, net_key
- * Gateway  keys:  wifi_ssid, wifi_pass, mqtt_url, mqtt_user, mqtt_pass,
- *                 device_id, net_key
+ * Detector keys:       device_id, net_key, lora_freq, sync_word
+ * Gateway keys:        wifi_ssid, wifi_pass, mqtt_url, mqtt_user, mqtt_pass,
+ *                      mqtt_device_id, net_key, lora_freq, sync_word
+ * Wired Detector keys: device_id, mqtt_url, mqtt_user, mqtt_pass,
+ *                      mqtt_device_id, eth_ip/gw/mask/dns, http_token
+ *                      (no net_key — wired role does not use LoRa encryption)
  */
 
 #include "config_console.h"
@@ -135,7 +138,9 @@ static int cmd_show(int argc, char **argv)
         nvs_handle_t h;
         bool opened = (nvs_open("lora_cfg", NVS_READONLY, &h) == ESP_OK);
         if (opened) {
+#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
             print_nvs_blob_hex(h, "app_key", "net_key", 16);
+#endif
 #if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
             print_nvs_u8(h, "device_id", "device_id");
 #endif
@@ -149,7 +154,9 @@ static int cmd_show(int argc, char **argv)
         }
     }
     printf("  Kconfig defaults:\n");
+#ifdef CONFIG_BATEAR_NET_KEY
     printf("    net_key    = %s\n", CONFIG_BATEAR_NET_KEY);
+#endif
 #if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
     printf("    device_id  = %d\n", CONFIG_BATEAR_DEVICE_ID);
 #endif
@@ -324,8 +331,8 @@ static int cmd_set(int argc, char **argv)
     if (argc < 3) {
         printf("Usage: set <key> <value>\n");
         printf("Keys:\n");
-        printf("  net_key     — 32 hex chars (AES-128 key)\n");
 #if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
+        printf("  net_key     — 32 hex chars (AES-128 LoRa key)\n");
         printf("  lora_freq   — frequency in kHz (e.g. 915000, 868000)\n");
         printf("  sync_word   — hex byte (e.g. 12, 34)\n");
 #endif
@@ -357,7 +364,8 @@ static int cmd_set(int argc, char **argv)
     const char *key = argv[1];
     const char *value = argv[2];
 
-    /* net_key — shared by both roles */
+    /* net_key — LoRa-only (Detector + Gateway) */
+#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
     if (strcmp(key, "net_key") == 0) {
         uint8_t blob[16];
         if (!hex_to_bytes(value, blob, 16)) {
@@ -366,6 +374,7 @@ static int cmd_set(int argc, char **argv)
         }
         return set_nvs_blob("lora_cfg", "app_key", blob, 16);
     }
+#endif
 
 #if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
     if (strcmp(key, "lora_freq") == 0) {

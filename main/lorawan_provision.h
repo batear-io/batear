@@ -2,12 +2,16 @@
  * lorawan_provision.h — LoRa key provisioning from NVS
  *
  * Reads dev_eui (8B) and app_key (16B) from NVS namespace "lora_cfg".
- * If keys are missing, falls back to compile-time BATEAR_NET_KEY and
- * a MAC-derived DevEUI.
+ * If keys are missing, falls back to a MAC-derived DevEUI and (for the
+ * Detector / Gateway roles only) the compile-time BATEAR_NET_KEY.
  *
  * The app_key from NVS serves as the AES-128 network key for the
  * detector↔gateway encrypted LoRa link, replacing the hardcoded
  * BATEAR_NET_KEY when present.
+ *
+ * Wired Detector role does not transmit over LoRa, so app_key is
+ * unused in that build — the field stays in the struct (kept zero
+ * unless previously provisioned) purely for layout compatibility.
  */
 #pragma once
 

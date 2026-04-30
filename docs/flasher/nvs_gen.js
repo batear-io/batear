@@ -302,17 +302,19 @@ export function generateRandomKey(bytes = 16) {
 }
 
 /**
- * Generate a multi-page NVS image with lora_cfg and wired_cfg.
+ * Generate a multi-page NVS image for the Wired Detector role.
  *
- * Page 0: "lora_cfg"  — dev_eui, app_key, device_id (u8)
+ * Page 0: "lora_cfg"  — only device_id (u8), if provided.  The wired detector
+ *                       does not use the LoRa link, so dev_eui and app_key
+ *                       are intentionally NOT written here; the firmware
+ *                       derives DevEUI from the chip MAC and never reads
+ *                       app_key in this build.
  * Page 1: "wired_cfg" — mqtt_url, mqtt_user, mqtt_pass, device_id (string),
- *                        eth_ip, eth_gw, eth_mask, eth_dns (all strings,
- *                        only non-empty values written)
+ *                        eth_ip, eth_gw, eth_mask, eth_dns, http_token
+ *                        (all strings; only non-empty values written).
  *
- * @param {Uint8Array}    devEui    - 8-byte DevEUI
- * @param {Uint8Array}    appKey    - 16-byte AppKey / network key
  * @param {number|null}   deviceId  - Detector device ID (0-255), null to omit
- * @param {Object}        wiredCfg  - Wired detector config strings
+ * @param {Object|null}   wiredCfg  - Wired detector config strings (any subset)
  * @param {string}        [wiredCfg.mqttUrl]
  * @param {string}        [wiredCfg.mqttUser]
  * @param {string}        [wiredCfg.mqttPass]
@@ -324,14 +326,12 @@ export function generateRandomKey(bytes = 16) {
  * @param {string}        [wiredCfg.httpToken]
  * @returns {Uint8Array} 8192-byte NVS image (2 pages)
  */
-export function generateWiredNvsImage(devEui, appKey, deviceId, wiredCfg) {
-  if (devEui.length !== 8)  throw new Error("dev_eui must be 8 bytes");
-  if (appKey.length !== 16) throw new Error("app_key must be 16 bytes");
-
+export function generateWiredNvsImage(deviceId, wiredCfg) {
+  const cfg = wiredCfg || {};
   const image = new Uint8Array(NVS_PAGE_SIZE * 2);
   image.fill(0xFF);
 
-  // ---- Page 0: lora_cfg ----
+  // ---- Page 0: lora_cfg (device_id only) ----
   const p0 = image.subarray(0, NVS_PAGE_SIZE);
 
   writeU32(p0, 0, PAGE_STATE_ACTIVE);
@@ -344,10 +344,8 @@ export function generateWiredNvsImage(devEui, appKey, deviceId, wiredCfg) {
   writeU32(p0, ns0Off + 4, entryItemCrc(p0, ns0Off));
   setEntryState(p0.subarray(HEADER_SIZE, HEADER_SIZE + BITMAP_SIZE), 0, ES_WRITTEN);
 
-  let idx = writeBlobEntries(p0, 1, 1, "dev_eui", devEui);
-  idx = writeBlobEntries(p0, idx, 1, "app_key", appKey);
   if (deviceId !== null && deviceId !== undefined) {
-    writeU8Entry(p0, idx, 1, "device_id", deviceId);
+    writeU8Entry(p0, 1, 1, "device_id", deviceId);
   }
 
   // ---- Page 1: wired_cfg ----
@@ -363,16 +361,16 @@ export function generateWiredNvsImage(devEui, appKey, deviceId, wiredCfg) {
   writeU32(p1, ns1Off + 4, entryItemCrc(p1, ns1Off));
   setEntryState(p1.subarray(HEADER_SIZE, HEADER_SIZE + BITMAP_SIZE), 0, ES_WRITTEN);
 
-  idx = 1;
-  if (wiredCfg.mqttUrl)  idx = writeStringEntry(p1, idx, 2, "mqtt_url",  wiredCfg.mqttUrl);
-  if (wiredCfg.mqttUser) idx = writeStringEntry(p1, idx, 2, "mqtt_user", wiredCfg.mqttUser);
-  if (wiredCfg.mqttPass) idx = writeStringEntry(p1, idx, 2, "mqtt_pass", wiredCfg.mqttPass);
-  if (wiredCfg.deviceId) idx = writeStringEntry(p1, idx, 2, "device_id", wiredCfg.deviceId);
-  if (wiredCfg.ethIp)    idx = writeStringEntry(p1, idx, 2, "eth_ip",    wiredCfg.ethIp);
-  if (wiredCfg.ethGw)    idx = writeStringEntry(p1, idx, 2, "eth_gw",    wiredCfg.ethGw);
-  if (wiredCfg.ethMask)  idx = writeStringEntry(p1, idx, 2, "eth_mask",  wiredCfg.ethMask);
-  if (wiredCfg.ethDns)    idx = writeStringEntry(p1, idx, 2, "eth_dns",    wiredCfg.ethDns);
-  if (wiredCfg.httpToken) idx = writeStringEntry(p1, idx, 2, "http_token", wiredCfg.httpToken);
+  let idx = 1;
+  if (cfg.mqttUrl)   idx = writeStringEntry(p1, idx, 2, "mqtt_url",   cfg.mqttUrl);
+  if (cfg.mqttUser)  idx = writeStringEntry(p1, idx, 2, "mqtt_user",  cfg.mqttUser);
+  if (cfg.mqttPass)  idx = writeStringEntry(p1, idx, 2, "mqtt_pass",  cfg.mqttPass);
+  if (cfg.deviceId)  idx = writeStringEntry(p1, idx, 2, "device_id",  cfg.deviceId);
+  if (cfg.ethIp)     idx = writeStringEntry(p1, idx, 2, "eth_ip",     cfg.ethIp);
+  if (cfg.ethGw)     idx = writeStringEntry(p1, idx, 2, "eth_gw",     cfg.ethGw);
+  if (cfg.ethMask)   idx = writeStringEntry(p1, idx, 2, "eth_mask",   cfg.ethMask);
+  if (cfg.ethDns)    idx = writeStringEntry(p1, idx, 2, "eth_dns",    cfg.ethDns);
+  if (cfg.httpToken) idx = writeStringEntry(p1, idx, 2, "http_token", cfg.httpToken);
 
   return image;
 }

@@ -76,9 +76,12 @@ config BATEAR_DEVICE_ID
 config BATEAR_NET_KEY
     string "AES-128 network key (32 hex chars)"
     default "DEADBEEFCAFEBABE13374200F00DAA55"
+    depends on BATEAR_ROLE_DETECTOR || BATEAR_ROLE_GATEWAY
     help
-        128-bit pre-shared key for AES-GCM encryption, as 32 hex
-        characters. Must match between all detectors and the gateway.
+        128-bit pre-shared key for AES-GCM encryption of the LoRa link,
+        as 32 hex characters. Must match between all detectors and the
+        gateway. Wired Detector role does NOT use this key — its link is
+        protected by the local network and (optionally) MQTT TLS.
         Generate: python3 -c "import os;print(os.urandom(16).hex().upper())"
 
 config BATEAR_LORA_FREQ

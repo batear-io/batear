@@ -84,14 +84,20 @@ esp_err_t lorawan_provision_init(void)
         ESP_LOGI(TAG, "DevEUI derived from MAC (not in NVS)");
     }
 
-    /* AppKey fallback: compile-time BATEAR_NET_KEY */
+    /* AppKey fallback: compile-time BATEAR_NET_KEY (LoRa roles only).
+     * Wired Detector never reads s_keys.app_key, so we leave it zeroed
+     * to make accidental misuse obvious in logs / packet dumps. */
     if (!got_key) {
+#ifdef CONFIG_BATEAR_NET_KEY
         static const uint8_t fallback[16] = BATEAR_NET_KEY;
         memcpy(s_keys.app_key, fallback, 16);
         ESP_LOGW(TAG,
                  "No LoRa keys found in NVS. "
                  "Using default key — provision via Batear Web Flasher "
                  "for a unique network key.");
+#else
+        memset(s_keys.app_key, 0, sizeof(s_keys.app_key));
+#endif
     }
 
     /* device_id fallback: compile-time CONFIG_BATEAR_DEVICE_ID */
@@ -140,6 +146,7 @@ void lorawan_log_keys(const char *tag)
              k->dev_eui[4], k->dev_eui[5], k->dev_eui[6], k->dev_eui[7],
              k->from_nvs ? " [NVS]" : " [MAC]");
 
+#ifdef CONFIG_BATEAR_NET_KEY
     ESP_LOGI(tag, "AppKey: %02X%02X%02X%02X%02X%02X%02X%02X"
                   "%02X%02X%02X%02X%02X%02X%02X%02X%s",
              k->app_key[0],  k->app_key[1],  k->app_key[2],  k->app_key[3],
@@ -147,13 +154,18 @@ void lorawan_log_keys(const char *tag)
              k->app_key[8],  k->app_key[9],  k->app_key[10], k->app_key[11],
              k->app_key[12], k->app_key[13], k->app_key[14], k->app_key[15],
              k->from_nvs ? " [NVS]" : " [DEFAULT]");
+#else
+    ESP_LOGI(tag, "AppKey: (not used in this role)");
+#endif
 
     ESP_LOGI(tag, "DeviceID: %u (0x%02X)%s",
              k->device_id, k->device_id,
              k->device_id_from_nvs ? " [NVS]" : " [DEFAULT]");
 
+#if defined(CONFIG_BATEAR_LORA_FREQ) || defined(CONFIG_BATEAR_LORA_SYNC_WORD)
     ESP_LOGI(tag, "LoRa freq: %lu kHz  sync_word: 0x%02X%s%s",
              (unsigned long)k->lora_freq_khz, k->lora_sync_word,
              k->lora_freq_from_nvs ? " freq[NVS]" : " freq[DEFAULT]",
              k->sync_word_from_nvs ? " sw[NVS]" : " sw[DEFAULT]");
+#endif
 }

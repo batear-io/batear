@@ -243,15 +243,19 @@
     <!-- Config Panel -->
     <div class="config-panel">
 
-      <!-- Common: Network Key (all roles) -->
-      <div class="section-title">// Network Key</div>
-      <div class="cfg-field">
-        <label>AES-128 Network Key (32 hex chars)</label>
-        <div class="input-row">
-          <input type="text" id="inputAppKey" maxlength="32" placeholder="e.g. A1B2C3D4E5F6071829304A5B6C7D8E9F" spellcheck="false" autocomplete="off">
-          <button class="btn-sm" id="btnGenKey" title="Generate random key">Generate</button>
+      <!-- LoRa-only: Network Key (Detector + Gateway).
+           Hidden for the Wired Detector role, which does not use the LoRa
+           link or the AES-128 network key. -->
+      <div id="networkKeySection">
+        <div class="section-title">// Network Key</div>
+        <div class="cfg-field">
+          <label>AES-128 Network Key (32 hex chars)</label>
+          <div class="input-row">
+            <input type="text" id="inputAppKey" maxlength="32" placeholder="e.g. A1B2C3D4E5F6071829304A5B6C7D8E9F" spellcheck="false" autocomplete="off">
+            <button class="btn-sm" id="btnGenKey" title="Generate random key">Generate</button>
+          </div>
+          <div class="hint" id="hintAppKey">Same key must be used on all Detectors and the Gateway.</div>
         </div>
-        <div class="hint" id="hintAppKey">Same key must be used on all Detectors and the Gateway.</div>
       </div>
 
       <!-- Detector config -->
@@ -452,14 +456,14 @@
         <details class="faq">
           <summary>How do I configure the network key and device ID?</summary>
           <div class="answer">
-            Enter a 32-character hex key in the <strong>Network Key</strong> field before
-            flashing. The same key must be used on all Detectors and the Gateway. Click
-            <strong>Generate</strong> to create a random key, then flash all devices with it.
-            For detectors, assign a unique <strong>Device ID</strong> (0&ndash;255) so the
-            gateway can identify which detector triggered an alarm.
-            Both values are stored in NVS (non-volatile storage) at offset <code>0x9000</code>.
-            To change LoRa frequency or sync word, build from source using
-            <code>idf.py menuconfig</code>.
+            The AES-128 <strong>Network Key</strong> only applies to the
+            <strong>Detector</strong> and <strong>Gateway</strong> roles &mdash; it secures
+            the LoRa link between them. Enter a 32-character hex key (or click
+            <strong>Generate</strong>) and flash every detector and the gateway with the same
+            value. For detectors, assign a unique <strong>Device ID</strong> (0&ndash;255) so
+            the gateway can identify which detector triggered an alarm. Both values are stored
+            in NVS at offset <code>0x9000</code>. To change LoRa frequency or sync word, build
+            from source using <code>idf.py menuconfig</code>.
           </div>
         </details>
         <details class="faq">
@@ -469,6 +473,11 @@
             username, password, and a unique device ID. To assign a static IP instead of DHCP,
             check <strong>Use static IP</strong> and enter the IP, gateway, subnet mask, and
             optional DNS server. These values are written to NVS and applied on boot.
+            <br><br>
+            The <strong>Network Key</strong> field is intentionally hidden in this tab &mdash;
+            the wired detector publishes directly to your MQTT broker over Ethernet, so it
+            does not use the AES-128 LoRa key. Use <code>mqtts://</code> + broker TLS if you
+            need transport encryption.
           </div>
         </details>
         <details class="faq">
@@ -552,10 +561,11 @@
     const loading      = document.getElementById("versionLoading");
     const btnInstall   = document.getElementById("btnInstall");
     const installLabel = document.getElementById("installLabel");
-    const inputKey     = document.getElementById("inputAppKey");
-    const btnGen       = document.getElementById("btnGenKey");
-    const hintKey      = document.getElementById("hintAppKey");
-    const keyStatus    = document.getElementById("keyStatus");
+    const inputKey         = document.getElementById("inputAppKey");
+    const btnGen           = document.getElementById("btnGenKey");
+    const hintKey          = document.getElementById("hintAppKey");
+    const keyStatus        = document.getElementById("keyStatus");
+    const networkKeyPanel  = document.getElementById("networkKeySection");
 
     const detDeviceId  = document.getElementById("detDeviceId");
     const hintDetDevId = document.getElementById("hintDetDevId");
@@ -590,6 +600,8 @@
       tabs.forEach(t => t.classList.toggle("active", t.dataset.role === role));
       infoPanels.forEach(p => p.classList.toggle("active", p.dataset.role === role));
       cfgPanels.forEach(p => p.classList.toggle("active", p.dataset.role === role));
+      // Wired Detector does not transmit over LoRa — hide the AES key field.
+      networkKeyPanel.style.display = (role === "wired_detector") ? "none" : "";
       installLabel.textContent = `Install ${ROLE_LABELS[role]}`;
       validateAndUpdate();
     }
@@ -727,11 +739,11 @@
       } else if (role === "wired_detector") {
         const devId = getWdDeviceId();
         const wdCfg = getWiredConfig();
-        needsPatch = validKey !== null || devId !== null || wdCfg !== null;
+        // Wired Detector ignores the LoRa AES key — only patch when wired
+        // role-specific fields (device ID or wired_cfg strings) are filled.
+        needsPatch = devId !== null || wdCfg !== null;
         if (needsPatch) {
-          nvsImage = wdCfg
-            ? generateWiredNvsImage(devEui, appKey, devId, wdCfg)
-            : generateNvsImage(devEui, appKey, devId);
+          nvsImage = generateWiredNvsImage(devId, wdCfg);
         }
       }
 
@@ -778,7 +790,11 @@
         hasRoleConfig = getWdDeviceId() !== null || getWiredConfig() !== null;
       }
 
-      if (!hasKey && !hasRoleConfig) {
+      // The AES network key is irrelevant for the Wired Detector role; only
+      // role-specific config can trigger a patched NVS image there.
+      const keyApplies = (currentRole !== "wired_detector");
+
+      if ((!hasKey || !keyApplies) && !hasRoleConfig) {
         keyStatus.className = "key-status default-key";
         keyStatus.querySelector("span").textContent =
           "No configuration entered \u2014 firmware will use compile-time defaults.";
@@ -794,7 +810,7 @@
       updateTimer = setTimeout(async () => {
         await updateManifests();
         const parts = [];
-        if (hasKey) parts.push("custom key");
+        if (hasKey && keyApplies) parts.push("custom key");
         if (currentRole === "detector" && getDetDeviceId() !== null) parts.push(`device ID ${getDetDeviceId()}`);
         if (currentRole === "gateway" && getGwConfig()) parts.push("Wi-Fi/MQTT config");
         if (currentRole === "wired_detector") {
