@@ -155,6 +155,9 @@ static int cmd_show(int argc, char **argv)
     }
     printf("  Kconfig defaults:\n");
 #ifdef CONFIG_BATEAR_NET_KEY
+    /* CONFIG_BATEAR_NET_KEY is a string macro from sdkconfig; cppcheck's
+       configuration sweep doesn't know that and treats it as int. */
+    // cppcheck-suppress invalidPrintfArgType_s
     printf("    net_key    = %s\n", CONFIG_BATEAR_NET_KEY);
 #endif
 #if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
@@ -363,6 +366,7 @@ static int cmd_set(int argc, char **argv)
 
     const char *key = argv[1];
     const char *value = argv[2];
+    (void)value;  /* Not all role permutations dispatch on value (cppcheck). */
 
     /* net_key — LoRa-only (Detector + Gateway) */
 #if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
