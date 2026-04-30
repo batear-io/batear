@@ -73,20 +73,50 @@
 #define BOARD_VBAT_DIVIDER_RATIO  4.9f
 
 /* =====================================================================
- * Add new boards here.  Example:
+ * Board: LILYGO T-ETH-Lite S3  (ESP32-S3 + W5500 Ethernet)
+ * =====================================================================
  *
- * #elif defined(CONFIG_BATEAR_BOARD_TTGO_LORA32_V21)
- *   #define BOARD_IDF_TARGET  "esp32"
- *   #define BOARD_FLASH_SIZE  "4MB"
- *   #define PIN_I2S_BCLK   26
- *   ...
- *   #define BOARD_HAS_VEXT  0
- *   #define BOARD_LORA_TCXO_V      0.0f
- *   #define BOARD_LORA_DIO2_AS_RF  false
- *   #define BOARD_HAS_VBAT  0         // set 1 and define PIN_VBAT_ADC/CTRL
- *                                     // + BOARD_VBAT_DIVIDER_RATIO if battery
- *                                     // monitoring is wired up.
+ * Occupied by on-board hardware — do NOT use for I2S:
+ *   GPIO 9..14  — W5500 Ethernet SPI + control
+ *   GPIO 5,6,7,42 — SD card SPI
+ *   GPIO 19,20  — USB
+ *   GPIO 43,44  — UART0
+ *
+ * Free pins for I2S mic (on extension headers):
+ *   GPIO 0..4, 8, 15..18, 21, 38..41, 45..48
  * ===================================================================== */
+#elif defined(CONFIG_BATEAR_BOARD_LILYGO_T_ETH_LITE_S3)
+
+#define BOARD_IDF_TARGET    "esp32s3"
+#define BOARD_FLASH_SIZE    "16MB"
+
+/* I2S microphone (ICS-43434) — wired to extension headers */
+#define PIN_I2S_BCLK    38
+#define PIN_I2S_WS      39
+#define PIN_I2S_DIN     40
+
+/* W5500 Ethernet SPI — fixed on-board wiring */
+#define PIN_ETH_SCLK    10
+#define PIN_ETH_MOSI    12
+#define PIN_ETH_MISO    11
+#define PIN_ETH_CS       9
+#define PIN_ETH_INT     13
+#define PIN_ETH_RST     14
+#define PIN_ETH_ADDR     1
+
+/* No gateway peripherals on this board */
+#define BOARD_HAS_VEXT   0
+#define BOARD_HAS_OLED   0
+#define BOARD_HAS_ETH    1
+
+/* No LoRa radio — dummy values to satisfy shared headers */
+#define BOARD_LORA_TCXO_V       0.0f
+#define BOARD_LORA_DIO2_AS_RF   false
+
+/* No battery monitor on this board (USB/PoE powered) */
+#define BOARD_HAS_VBAT           0
+
+/* ===================================================================== */
 
 #else
 #error "No board selected — set BATEAR_BOARD in menuconfig or sdkconfig"

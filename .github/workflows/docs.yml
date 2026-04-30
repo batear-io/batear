@@ -51,6 +51,8 @@ jobs:
               -o "docs/flasher/firmware/$release/merged_detector.bin" || true
             curl -sL "https://github.com/${{ github.repository }}/releases/download/$release/merged_gateway.bin" \
               -o "docs/flasher/firmware/$release/merged_gateway.bin" || true
+            curl -sL "https://github.com/${{ github.repository }}/releases/download/$release/merged_wired_detector.bin" \
+              -o "docs/flasher/firmware/$release/merged_wired_detector.bin" || true
           done
 
       - name: Build site

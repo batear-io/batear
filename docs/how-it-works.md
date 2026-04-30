@@ -26,10 +26,19 @@ The ESP32-S3's SIMD instructions keep the full FFT + harmonic scan well under 10
 
 ## Alert Transmission
 
-When a drone signature is confirmed, an **AES-128-GCM encrypted** alert is transmitted over LoRa to the gateway. See the [LoRa Protocol](protocol.md) page for packet format details.
+When a drone signature is confirmed, the detector sends an alert. The path depends on the deployment model:
+
+- **LoRa Detector** — An **AES-128-GCM encrypted** alert is transmitted over LoRa to the gateway. See the [LoRa Protocol](protocol.md) page for packet format details.
+- **Wired Detector** — The `DroneEvent_t` is published directly as JSON to the MQTT broker over Ethernet. No encryption overhead is needed since the network is wired.
 
 ## Gateway → Home Assistant
 
 The gateway decrypts the LoRa packet and pushes a `MqttEvent_t` into a FreeRTOS queue. On a separate core, MqttTask picks up the event and publishes a JSON payload over MQTT to the broker.
 
-Home Assistant discovers the gateway automatically via MQTT Discovery — no manual YAML needed. See [Configuration → MQTT / Home Assistant](configuration.md#mqtt-home-assistant-integration) for topics, payloads, and setup.
+## Wired Detector → Home Assistant
+
+The wired detector's EthMqttTask receives `DroneEvent_t` items directly from AudioTask via a FreeRTOS queue and publishes them as JSON over MQTT. No gateway is needed — the detector connects directly to the MQTT broker over Ethernet (optionally via PoE for single-cable deployment). The network interface supports both DHCP (default) and static IP — see [Configuration](configuration.md#wired-detector-config) for setup.
+
+The wired detector also exposes a **REST API** on port 8080 for remote management: device info, detection status, NVS configuration updates, and **OTA firmware updates** — upload a new binary via `POST /api/ota` and the device reboots with automatic rollback protection. See [Configuration → REST API](configuration.md#rest-api-wired-detector-only) for endpoint reference.
+
+Home Assistant discovers both device types automatically via MQTT Discovery — no manual YAML needed. See [Configuration → MQTT / Home Assistant](configuration.md#mqtt-home-assistant-integration) for topics, payloads, and setup.

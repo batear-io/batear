@@ -79,11 +79,14 @@ idf.py -B build_detector \
 
 If the board uses SX1276/SX1278 instead of SX1262, you'll need to update `lora_task.cpp` and `gateway_task.cpp` to instantiate the correct RadioLib class. Use `#ifdef` on your board macro for conditional compilation.
 
+!!! tip "Ethernet boards"
+    For boards with Ethernet (e.g. LILYGO T-ETH-Lite S3), define `PIN_ETH_*` pins and `BOARD_HAS_ETH 1` instead of `PIN_LORA_*` pins. See the T-ETH-Lite S3 block in `pin_config.h` for a working example. These boards use the `WIRED_DETECTOR` role and a separate `sdkconfig.wired_detector`.
+
 ## Checklist
 
 - [ ] `Kconfig.projbuild` — board entry added
 - [ ] `pin_config.h` — `#elif` block with all `PIN_*` and `BOARD_*` macros (including `BOARD_HAS_VBAT`)
-- [ ] `sdkconfig.detector` / `sdkconfig.gateway` — board + flash size set
+- [ ] `sdkconfig.*` — board + flash size + role set
 - [ ] `set-target` matches the chip (`esp32`, `esp32s3`, `esp32c3`, ...)
 - [ ] Board row added to the build table in docs
 - [ ] Build + flash tested on hardware

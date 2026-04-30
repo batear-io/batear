@@ -1,0 +1,15 @@
+{
+  "name": "Batear Wired Detector",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        {
+          "path": "firmware/firmware-latest/merged_wired_detector.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

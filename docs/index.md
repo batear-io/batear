@@ -7,7 +7,7 @@ hide:
 
 # Batear
 
-**Ultra-low-cost, edge-only acoustic drone detection on ESP32-S3 with encrypted LoRa alerting.**
+**Ultra-low-cost, edge-only acoustic drone detection on ESP32-S3 with encrypted LoRa or wired Ethernet alerting.**
 
 [![Featured on Hackaday](https://img.shields.io/badge/Featured%20on-Hackaday-black?logo=hackaday)](https://hackaday.com/2026/03/23/acoustic-drone-detection-on-the-cheap-with-esp32/)
 [![GitHub Stars](https://img.shields.io/github/stars/TN666/batear?style=flat-square)](https://github.com/TN666/batear/stargazers)
@@ -38,7 +38,7 @@ Drones are an increasing threat to homes, farms, and communities — and effecti
 
 For ultra-low-cost hardware, Batear turns a tiny ESP32-S3 microcontroller and a MEMS microphone into an always-on acoustic drone detector. It runs entirely at the edge — **no cloud subscription, no internet connection, no ongoing cost.** Deploy one at a window, a fence line, or a rooftop and it will alert you the moment drone rotor harmonics are detected nearby.
 
-The same codebase builds as a **Detector** (mic + LoRa TX) or a **Gateway** (LoRa RX + OLED + LED + MQTT), selectable at build time. The gateway forwards alerts to **Home Assistant** via MQTT with automatic device discovery.
+The same codebase builds as a **Detector** (mic + LoRa TX), a **Gateway** (LoRa RX + OLED + LED + MQTT), or a **Wired Detector** (mic + Ethernet/PoE + MQTT), selectable at build time. The gateway forwards alerts to **Home Assistant** via MQTT with automatic device discovery. The wired detector connects directly over Ethernet, bypassing the LoRa + Gateway path entirely.
 
 ## Key Features
 
@@ -48,7 +48,8 @@ The same codebase builds as a **Detector** (mic + LoRa TX) or a **Gateway** (LoR
 - :house: **Home Assistant integration** — MQTT with auto-discovery, LWT availability, per-detector topics
 - :zap: **Edge-only** — no cloud, no internet, no subscription
 - :moneybag: **Ultra-low-cost** — under $20 per node with off-the-shelf parts
-- :package: **Single codebase** — builds as Detector or Gateway via config
+- :electric_plug: **Wired option** — Ethernet/PoE variant for fixed installations (no LoRa needed)
+- :package: **Single codebase** — builds as Detector, Gateway, or Wired Detector via config
 
 ## Quick Start
 

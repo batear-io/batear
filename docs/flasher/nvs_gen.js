@@ -302,6 +302,82 @@ export function generateRandomKey(bytes = 16) {
 }
 
 /**
+ * Generate a multi-page NVS image with lora_cfg and wired_cfg.
+ *
+ * Page 0: "lora_cfg"  — dev_eui, app_key, device_id (u8)
+ * Page 1: "wired_cfg" — mqtt_url, mqtt_user, mqtt_pass, device_id (string),
+ *                        eth_ip, eth_gw, eth_mask, eth_dns (all strings,
+ *                        only non-empty values written)
+ *
+ * @param {Uint8Array}    devEui    - 8-byte DevEUI
+ * @param {Uint8Array}    appKey    - 16-byte AppKey / network key
+ * @param {number|null}   deviceId  - Detector device ID (0-255), null to omit
+ * @param {Object}        wiredCfg  - Wired detector config strings
+ * @param {string}        [wiredCfg.mqttUrl]
+ * @param {string}        [wiredCfg.mqttUser]
+ * @param {string}        [wiredCfg.mqttPass]
+ * @param {string}        [wiredCfg.deviceId]
+ * @param {string}        [wiredCfg.ethIp]
+ * @param {string}        [wiredCfg.ethGw]
+ * @param {string}        [wiredCfg.ethMask]
+ * @param {string}        [wiredCfg.ethDns]
+ * @param {string}        [wiredCfg.httpToken]
+ * @returns {Uint8Array} 8192-byte NVS image (2 pages)
+ */
+export function generateWiredNvsImage(devEui, appKey, deviceId, wiredCfg) {
+  if (devEui.length !== 8)  throw new Error("dev_eui must be 8 bytes");
+  if (appKey.length !== 16) throw new Error("app_key must be 16 bytes");
+
+  const image = new Uint8Array(NVS_PAGE_SIZE * 2);
+  image.fill(0xFF);
+
+  // ---- Page 0: lora_cfg ----
+  const p0 = image.subarray(0, NVS_PAGE_SIZE);
+
+  writeU32(p0, 0, PAGE_STATE_ACTIVE);
+  writeU32(p0, 4, 0);
+  p0[8] = NVS_VERSION;
+  writeU32(p0, 28, crc32(p0.subarray(4, 28), 0xFFFFFFFF));
+
+  const ns0Off = writeEntryHeader(p0, 0, 0, TYPE_U8, 1, 0xFF, "lora_cfg");
+  p0[ns0Off + 24] = 1;
+  writeU32(p0, ns0Off + 4, entryItemCrc(p0, ns0Off));
+  setEntryState(p0.subarray(HEADER_SIZE, HEADER_SIZE + BITMAP_SIZE), 0, ES_WRITTEN);
+
+  let idx = writeBlobEntries(p0, 1, 1, "dev_eui", devEui);
+  idx = writeBlobEntries(p0, idx, 1, "app_key", appKey);
+  if (deviceId !== null && deviceId !== undefined) {
+    writeU8Entry(p0, idx, 1, "device_id", deviceId);
+  }
+
+  // ---- Page 1: wired_cfg ----
+  const p1 = image.subarray(NVS_PAGE_SIZE, NVS_PAGE_SIZE * 2);
+
+  writeU32(p1, 0, PAGE_STATE_ACTIVE);
+  writeU32(p1, 4, 1);
+  p1[8] = NVS_VERSION;
+  writeU32(p1, 28, crc32(p1.subarray(4, 28), 0xFFFFFFFF));
+
+  const ns1Off = writeEntryHeader(p1, 0, 0, TYPE_U8, 1, 0xFF, "wired_cfg");
+  p1[ns1Off + 24] = 2;
+  writeU32(p1, ns1Off + 4, entryItemCrc(p1, ns1Off));
+  setEntryState(p1.subarray(HEADER_SIZE, HEADER_SIZE + BITMAP_SIZE), 0, ES_WRITTEN);
+
+  idx = 1;
+  if (wiredCfg.mqttUrl)  idx = writeStringEntry(p1, idx, 2, "mqtt_url",  wiredCfg.mqttUrl);
+  if (wiredCfg.mqttUser) idx = writeStringEntry(p1, idx, 2, "mqtt_user", wiredCfg.mqttUser);
+  if (wiredCfg.mqttPass) idx = writeStringEntry(p1, idx, 2, "mqtt_pass", wiredCfg.mqttPass);
+  if (wiredCfg.deviceId) idx = writeStringEntry(p1, idx, 2, "device_id", wiredCfg.deviceId);
+  if (wiredCfg.ethIp)    idx = writeStringEntry(p1, idx, 2, "eth_ip",    wiredCfg.ethIp);
+  if (wiredCfg.ethGw)    idx = writeStringEntry(p1, idx, 2, "eth_gw",    wiredCfg.ethGw);
+  if (wiredCfg.ethMask)  idx = writeStringEntry(p1, idx, 2, "eth_mask",  wiredCfg.ethMask);
+  if (wiredCfg.ethDns)    idx = writeStringEntry(p1, idx, 2, "eth_dns",    wiredCfg.ethDns);
+  if (wiredCfg.httpToken) idx = writeStringEntry(p1, idx, 2, "http_token", wiredCfg.httpToken);
+
+  return image;
+}
+
+/**
  * Generate a multi-page NVS image with both lora_cfg and gateway_cfg.
  *
  * Page 0: "lora_cfg"    — dev_eui, app_key (same as generateNvsImage)

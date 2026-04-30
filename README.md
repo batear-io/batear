@@ -2,7 +2,7 @@
   <img src="icon.png" alt="Batear Logo" width="200"/>
   
   <h1>Batear</h1>
-  <p><strong>An ultra-low-cost, edge-only acoustic drone detector on ESP32-S3 with encrypted LoRa alerting.</strong></p>
+  <p><strong>An ultra-low-cost, edge-only acoustic drone detector on ESP32-S3 with encrypted LoRa or wired Ethernet/PoE alerting.</strong></p>
 
 <p align="center">
   <a href="https://opencollective.com/batear"><img src="https://img.shields.io/opencollective/all/batear?label=Sponsors&color=blue" alt="Sponsors"></a>
@@ -48,7 +48,7 @@ Drones are an increasing threat to homes, farms, and communities — and effecti
 
 For ultra-low-cost hardware, Batear turns a tiny ESP32-S3 microcontroller and a MEMS microphone into an always-on acoustic drone detector. It runs entirely at the edge — **no cloud subscription, no internet connection, no ongoing cost.** Deploy one at a window, a fence line, or a rooftop and it will alert you the moment drone rotor harmonics are detected nearby.
 
-The same codebase builds as a **Detector** (mic + LoRa TX) or a **Gateway** (LoRa RX + OLED + LED + MQTT), selectable at build time. The gateway forwards alerts to **Home Assistant** via MQTT with automatic device discovery.
+The same codebase builds as a **Detector** (mic + LoRa TX), a **Gateway** (LoRa RX + OLED + LED + MQTT), or a **Wired Detector** (mic + Ethernet/PoE + MQTT), selectable at build time. The gateway forwards alerts to **Home Assistant** via MQTT with automatic device discovery; the wired detector publishes directly over Ethernet — no LoRa or gateway required, ideal for permanent installations.
 
 ---
 
@@ -58,7 +58,7 @@ Flash firmware directly from your browser — no toolchain needed:
 
 **[Open Web Flasher](https://docs.batear.io/flasher/)**
 
-> Requires Chrome or Edge on desktop. Just connect your Heltec V3 or V4 via USB-C and click Install.
+> Requires Chrome or Edge on desktop. Connect a Heltec V3/V4 (Detector or Gateway) or a LILYGO T-ETH-Lite S3 (Wired Detector) via USB-C and click Install.
 
 ---
 
@@ -96,11 +96,15 @@ Full documentation is available at **[batear.io](https://docs.batear.io)**.
 
 ## 🏗️ System Architecture
 
+Batear supports two deployment models — pick whichever fits the site:
+
+### Wireless (LoRa Detector → Gateway → MQTT)
+
 ```
 ┌──────────────────────┐        LoRa 915 MHz          ┌──────────────────────┐
 │    DETECTOR (×N)     │ ───────────────────────────► │     GATEWAY (×1)     │
 │                      │  AES-128-GCM encrypted       │                      │
-│  ICS-43434 mic       │  28-byte packets             │  SSD1306 OLED display│
+│  ICS-43434 mic       │  36-byte packets             │  SSD1306 OLED display│
 │  FFT harmonic detect │                              │  LED alarm indicator │
 │  SX1262 LoRa TX      │                              │  SX1262 LoRa RX      │
 └──────────────────────┘                              │  WiFi + MQTT TX      │
@@ -114,6 +118,19 @@ Full documentation is available at **[batear.io](https://docs.batear.io)**.
                                                       └──────────────────────┘
 ```
 
+### Wired (Ethernet/PoE Detector → MQTT, no gateway)
+
+```
+┌──────────────────────┐
+│  WIRED DETECTOR (×N) │       Ethernet (PoE)
+│                      │ ───────────────────────────► ┌──────────────────────┐
+│  ICS-43434 mic       │       MQTT / JSON            │   HOME ASSISTANT     │
+│  FFT harmonic detect │       + REST API / OTA       │   (auto-discovery)   │
+│  W5500 Ethernet      │                              └──────────────────────┘
+└──────────────────────┘
+   LILYGO T-ETH-Lite S3
+```
+
 ---
 
 ## ⚡ Quick Start (Build from Source)
@@ -122,7 +139,8 @@ Full documentation is available at **[batear.io](https://docs.batear.io)**.
 # Clone
 git clone https://github.com/batear-io/batear.git && cd batear
 
-# Build detector
+# Build detector  (swap sdkconfig.detector → sdkconfig.gateway or
+# sdkconfig.wired_detector for the other roles)
 idf.py -B build_detector \
   -DSDKCONFIG=build_detector/sdkconfig \
   -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.detector" \
@@ -133,7 +151,7 @@ idf.py -B build_detector -DSDKCONFIG=build_detector/sdkconfig build
 idf.py -B build_detector -DSDKCONFIG=build_detector/sdkconfig -p PORT flash monitor
 ```
 
-See the [full build guide](https://docs.batear.io/build-flash/) for gateway setup and detailed instructions.
+See the [full build guide](https://docs.batear.io/build-flash/) for gateway and wired-detector setup and detailed instructions.
 
 ---
 

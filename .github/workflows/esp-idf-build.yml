@@ -19,7 +19,13 @@ jobs:
     container: espressif/idf:release-v6.0
     strategy:
       matrix:
-        role: [detector, gateway]
+        include:
+          - role: detector
+            flash_size: 8MB
+          - role: gateway
+            flash_size: 8MB
+          - role: wired_detector
+            flash_size: 16MB
 
     steps:
       - name: Checkout code
@@ -44,7 +50,7 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           esptool.py --chip esp32s3 merge_bin -o merged_${{ matrix.role }}.bin \
-            --flash_mode dio --flash_size 8MB \
+            --flash_mode dio --flash_size ${{ matrix.flash_size }} \
             0x0    build/bootloader/bootloader.bin \
             0x8000 build/partition_table/partition-table.bin \
             0x10000 build/batear.bin
@@ -77,6 +83,7 @@ jobs:
         run: |
           CUR_DET=$(stat -c %s merged_detector.bin)
           CUR_GW=$(stat -c %s merged_gateway.bin)
+          CUR_WD=$(stat -c %s merged_wired_detector.bin)
           REPO="${{ github.repository }}"
           R=/tmp/size_report.md
           sign() { local v=$1; [ "$v" -gt 0 ] && echo "+${v}" || echo "${v}"; }
@@ -94,10 +101,23 @@ jobs:
             PREV_GW=$(stat -c %s /tmp/prev_gateway.bin)
             DET_DELTA=$(sign $((CUR_DET - PREV_DET)))
             GW_DELTA=$(sign $((CUR_GW - PREV_GW)))
+
+            # Wired detector may not exist in previous release
+            if curl -sfL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                 "https://github.com/${REPO}/releases/download/firmware-latest/merged_wired_detector.bin" \
+                 -o /tmp/prev_wired_detector.bin; then
+              PREV_WD=$(stat -c %s /tmp/prev_wired_detector.bin)
+              WD_DELTA=$(sign $((CUR_WD - PREV_WD)))
+            else
+              PREV_WD="—"
+              WD_DELTA="new"
+            fi
+
             echo "| Role | Current | Previous | Delta |" >> "$R"
             echo "|------|--------:|--------:|------:|" >> "$R"
             echo "| Detector | $CUR_DET B | $PREV_DET B | $DET_DELTA B |" >> "$R"
             echo "| Gateway | $CUR_GW B | $PREV_GW B | $GW_DELTA B |" >> "$R"
+            echo "| Wired Detector | $CUR_WD B | $PREV_WD B | $WD_DELTA B |" >> "$R"
             echo "" >> "$R"
             echo "> Compared against [\`firmware-latest\`](https://github.com/${REPO}/releases/tag/firmware-latest)." >> "$R"
           else
@@ -105,6 +125,7 @@ jobs:
             echo "|------|-----:|" >> "$R"
             echo "| Detector | $CUR_DET B |" >> "$R"
             echo "| Gateway | $CUR_GW B |" >> "$R"
+            echo "| Wired Detector | $CUR_WD B |" >> "$R"
             echo "" >> "$R"
             echo "> No previous release found for comparison." >> "$R"
           fi
@@ -114,6 +135,7 @@ jobs:
           echo "" >> "$R"
           echo "**Detector:** \`$(cat size_detector.txt)\`" >> "$R"
           echo "**Gateway:** \`$(cat size_gateway.txt)\`" >> "$R"
+          echo "**Wired Detector:** \`$(cat size_wired_detector.txt)\`" >> "$R"
           echo "" >> "$R"
           echo "</details>" >> "$R"
 
@@ -170,3 +192,4 @@ jobs:
           files: |
             merged_detector.bin
             merged_gateway.bin
+            merged_wired_detector.bin

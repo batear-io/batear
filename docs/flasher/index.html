@@ -21,7 +21,7 @@
     a{color:var(--blue);text-decoration:none}
     a:hover{text-decoration:underline}
 
-    .container{max-width:920px;margin:0 auto;padding:0 24px}
+    .container{max-width:720px;margin:0 auto;padding:0 24px}
 
     /* --- Header --- */
     header{border-bottom:1px solid var(--border);padding:20px 0}
@@ -43,28 +43,71 @@
     .browser-notice svg{flex-shrink:0}
     .browser-notice strong{color:var(--yellow)}
 
-    /* --- Firmware Cards --- */
-    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;padding-bottom:48px}
-    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;position:relative;overflow:hidden;transition:border-color .2s}
-    .card:hover{border-color:var(--accent)}
-    .card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent)}
-    .card-badge{display:inline-block;font-family:var(--font-mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;padding:3px 10px;border-radius:4px;margin-bottom:16px}
-    .card-badge.detector{background:rgba(211,84,0,.1);color:var(--accent)}
-    .card-badge.gateway{background:rgba(9,105,218,.1);color:var(--blue)}
-    .card h3{font-size:20px;margin-bottom:8px}
-    .card p{color:var(--text-muted);font-size:14px;margin-bottom:20px;min-height:60px}
-    .card .specs{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-bottom:20px;display:flex;flex-wrap:wrap;gap:8px 16px}
-    .card .specs span::before{content:'›';color:var(--accent);margin-right:6px}
-    .card esp-web-install-button{display:block}
-    .card esp-web-install-button button{width:100%;padding:12px 24px;font-size:15px;font-weight:600;border:none;border-radius:6px;cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px}
-    .card esp-web-install-button button.detect-btn{background:var(--accent);color:#fff}
-    .card esp-web-install-button button.detect-btn:hover{background:var(--accent-dim)}
-    .card esp-web-install-button button.gate-btn{background:transparent;color:var(--blue);border:2px solid var(--blue)}
-    .card esp-web-install-button button.gate-btn:hover{background:rgba(9,105,218,.08)}
+    /* --- Unsupported --- */
+    .unsupported{display:none;background:#fff5f5;color:var(--red);border:1px solid var(--red);padding:14px 20px;border-radius:var(--radius);text-align:center;font-weight:600;margin-bottom:24px}
+
+    /* --- Version Picker --- */
+    .version-picker{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;max-width:400px;margin:0 auto 32px;display:flex;align-items:center;gap:12px}
+    .version-picker label{font-size:14px;font-weight:600;white-space:nowrap}
+    .version-picker select{flex:1;padding:8px 12px;font-size:14px;font-family:var(--font-mono);border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23656d76' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+    .version-picker select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+    .version-picker .loading{font-size:13px;color:var(--text-muted);font-family:var(--font-mono)}
+
+    /* --- Role Tabs --- */
+    .role-tabs{display:flex;gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px}
+    .role-tab{flex:1;padding:16px 12px;background:var(--surface);border:none;cursor:pointer;text-align:center;font-family:inherit;font-size:14px;color:var(--text-muted);transition:all .15s;border-right:1px solid var(--border);position:relative}
+    .role-tab:last-child{border-right:none}
+    .role-tab:hover{background:var(--card);color:var(--text)}
+    .role-tab.active{background:var(--bg);color:var(--text);font-weight:600}
+    .role-tab.active::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--accent)}
+    .role-tab .tab-label{display:block;font-weight:inherit;margin-bottom:2px}
+    .role-tab .tab-sub{display:block;font-size:11px;font-family:var(--font-mono);color:var(--text-muted);letter-spacing:.3px}
+
+    /* --- Role Info --- */
+    .role-info{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px}
+    .role-info p{color:var(--text-muted);font-size:14px;margin-bottom:12px}
+    .role-info .specs{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:6px 16px}
+    .role-info .specs span::before{content:'›';color:var(--accent);margin-right:6px}
+    .role-info-panel{display:none}
+    .role-info-panel.active{display:block}
+
+    /* --- Config Panel --- */
+    .config-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px}
+    .section-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:var(--accent);margin-bottom:16px;font-family:var(--font-mono)}
+    .cfg-field{margin-bottom:14px}
+    .cfg-field label{display:block;font-size:13px;font-weight:600;margin-bottom:4px;font-family:var(--font-mono)}
+    .cfg-field .input-row{display:flex;gap:8px}
+    .cfg-field input{flex:1;padding:8px 12px;font-size:14px;font-family:var(--font-mono);border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)}
+    .cfg-field input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+    .cfg-field input.invalid{border-color:var(--red);background:#fff5f5}
+    .cfg-field .hint{font-size:12px;color:var(--text-muted);margin-top:3px}
+    .cfg-field .hint.error{color:var(--red)}
+    .cfg-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .btn-sm{padding:8px 14px;font-size:13px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .15s}
+    .btn-sm:hover{border-color:var(--accent);color:var(--accent)}
+    .key-status{font-size:13px;padding:10px 14px;border-radius:6px;margin-top:4px;display:flex;align-items:center;gap:8px}
+    .key-status.provisioned{background:rgba(26,127,55,.08);color:var(--green)}
+    .key-status.default-key{background:rgba(154,103,0,.08);color:var(--yellow)}
+    .role-config{display:none}
+    .role-config.active{display:block}
+    .cfg-field input[type="password"]{letter-spacing:1px}
+    .cfg-divider{border:none;border-top:1px solid var(--border);margin:18px 0}
+
+    /* --- Static IP collapsible --- */
+    .static-ip-toggle{display:flex;align-items:center;gap:10px;margin:14px 0 0;font-size:14px;cursor:pointer}
+    .static-ip-toggle input{accent-color:var(--accent);width:16px;height:16px}
+    .static-ip-fields{display:none;margin-top:12px}
+    .static-ip-fields.visible{display:block}
+
+    /* --- Install Button --- */
+    .install-section{text-align:center;margin-bottom:48px}
+    .install-section esp-web-install-button{display:inline-block}
+    .install-section esp-web-install-button button{padding:14px 40px;font-size:16px;font-weight:700;border:none;border-radius:8px;cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--accent);color:#fff;margin:0 auto}
+    .install-section esp-web-install-button button:hover{background:var(--accent-dim)}
 
     /* --- Section --- */
     .section{padding:40px 0;border-top:1px solid var(--border)}
-    .section-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:var(--accent);margin-bottom:24px;font-family:var(--font-mono)}
+    .section > .section-title{margin-bottom:24px}
 
     /* --- Connection Guide --- */
     .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}
@@ -108,48 +151,6 @@
     .footer-links{display:flex;gap:20px}
     .footer-links a{color:var(--text-muted);font-size:13px}
     .footer-links a:hover{color:var(--text)}
-
-    /* --- Version Picker --- */
-    .version-picker{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;max-width:400px;margin:0 auto 32px;display:flex;align-items:center;gap:12px}
-    .version-picker label{font-size:14px;font-weight:600;white-space:nowrap}
-    .version-picker select{flex:1;padding:8px 12px;font-size:14px;font-family:var(--font-mono);border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23656d76' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
-    .version-picker select:focus{outline:2px solid var(--accent);outline-offset:-1px}
-    .version-picker .loading{font-size:13px;color:var(--text-muted);font-family:var(--font-mono)}
-
-    /* --- Unsupported --- */
-    .unsupported{display:none;background:#fff5f5;color:var(--red);border:1px solid var(--red);padding:14px 20px;border-radius:var(--radius);text-align:center;font-weight:600;margin-bottom:24px}
-
-    /* --- Key Config --- */
-    .key-config{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;max-width:560px;margin:0 auto 32px}
-    .key-config .section-title{margin-bottom:16px}
-    .key-field{margin-bottom:14px}
-    .key-field label{display:block;font-size:13px;font-weight:600;margin-bottom:4px;font-family:var(--font-mono)}
-    .key-field .input-row{display:flex;gap:8px}
-    .key-field input{flex:1;padding:8px 12px;font-size:14px;font-family:var(--font-mono);border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)}
-    .key-field input:focus{outline:2px solid var(--accent);outline-offset:-1px}
-    .key-field input.invalid{border-color:var(--red);background:#fff5f5}
-    .key-field .hint{font-size:12px;color:var(--text-muted);margin-top:3px}
-    .key-field .hint.error{color:var(--red)}
-    .btn-sm{padding:8px 14px;font-size:13px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .15s}
-    .btn-sm:hover{border-color:var(--accent);color:var(--accent)}
-    .key-status{font-size:13px;padding:10px 14px;border-radius:6px;margin-top:4px;display:flex;align-items:center;gap:8px}
-    .key-status.provisioned{background:rgba(26,127,55,.08);color:var(--green)}
-    .key-status.default-key{background:rgba(154,103,0,.08);color:var(--yellow)}
-
-    /* --- Gateway Config --- */
-    .gw-config{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;max-width:560px;margin:0 auto 32px}
-    .gw-config .section-title{margin-bottom:16px}
-    .gw-config .hint{font-size:12px;color:var(--text-muted);margin-top:3px}
-    .gw-toggle{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:14px;cursor:pointer}
-    .gw-toggle input{accent-color:var(--accent);width:16px;height:16px}
-    .gw-fields{display:none}
-    .gw-fields.visible{display:block}
-    .gw-field{margin-bottom:12px}
-    .gw-field label{display:block;font-size:13px;font-weight:600;margin-bottom:4px;font-family:var(--font-mono)}
-    .gw-field input{width:100%;padding:8px 12px;font-size:14px;font-family:var(--font-mono);border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)}
-    .gw-field input:focus{outline:2px solid var(--accent);outline-offset:-1px}
-    .gw-field input[type="password"]{letter-spacing:1px}
-    .gw-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   </style>
 </head>
 <body>
@@ -170,7 +171,7 @@
     <!-- Hero -->
     <section class="hero">
       <h1>Flash firmware <span>in 60 seconds</span></h1>
-      <p>No toolchain. No drivers. Connect your board via USB and flash directly from the browser.</p>
+      <p>No toolchain. No drivers. Connect your ESP32-S3 board via USB and flash directly from the browser.</p>
 
       <!-- Browser check -->
       <div class="browser-notice">
@@ -192,109 +193,200 @@
       </div>
     </section>
 
-    <!-- Key Configuration -->
-    <section class="key-config">
-      <div class="section-title">// Network Key</div>
-      <div class="key-field">
-        <label>AES-128 Network Key (32 hex chars)</label>
-        <div class="input-row">
-          <input type="text" id="inputAppKey" maxlength="32" placeholder="e.g. A1B2C3D4E5F6071829304A5B6C7D8E9F" spellcheck="false" autocomplete="off">
-          <button class="btn-sm" id="btnGenKey" title="Generate random key">Generate</button>
-        </div>
-        <div class="hint" id="hintAppKey">Same key must be used on both Detector and Gateway.</div>
-      </div>
-      <div class="key-field">
-        <label>Detector Device ID (0–255)</label>
-        <div class="input-row">
-          <input type="number" id="inputDeviceId" min="0" max="255" step="1" placeholder="1" style="max-width:120px">
-        </div>
-        <div class="hint" id="hintDeviceId">Unique per detector — the gateway shows which device triggered an alarm.</div>
-      </div>
-      <div class="key-status default-key" id="keyStatus">
-        <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M10 2L18 17H2L10 2Z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M10 8v4M10 14v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <span>No key entered — firmware will use the default shared key.</span>
-      </div>
-    </section>
+    <!-- Role Tabs -->
+    <div class="role-tabs">
+      <button class="role-tab active" data-role="detector">
+        <span class="tab-label">Detector</span>
+        <span class="tab-sub">LoRa TX</span>
+      </button>
+      <button class="role-tab" data-role="gateway">
+        <span class="tab-label">Gateway</span>
+        <span class="tab-sub">LoRa RX + MQTT</span>
+      </button>
+      <button class="role-tab" data-role="wired_detector">
+        <span class="tab-label">Wired Detector</span>
+        <span class="tab-sub">Ethernet + MQTT</span>
+      </button>
+    </div>
 
-    <!-- Gateway MQTT/WiFi Config -->
-    <section class="gw-config">
-      <div class="section-title">// Gateway — MQTT / Home Assistant</div>
-      <label class="gw-toggle">
-        <input type="checkbox" id="gwEnable">
-        Provision Wi-Fi &amp; MQTT credentials for the gateway
-      </label>
-      <div class="gw-fields" id="gwFields">
-        <div class="gw-row">
-          <div class="gw-field">
-            <label>Wi-Fi SSID</label>
-            <input type="text" id="gwWifiSsid" placeholder="MyNetwork" spellcheck="false" autocomplete="off">
-          </div>
-          <div class="gw-field">
-            <label>Wi-Fi Password</label>
-            <input type="password" id="gwWifiPass" placeholder="••••••••" autocomplete="off">
-          </div>
-        </div>
-        <div class="gw-field">
-          <label>MQTT Broker URL</label>
-          <input type="text" id="gwMqttUrl" placeholder="mqtt://192.168.1.100:1883" spellcheck="false" autocomplete="off">
-          <div class="hint">Use mqtt:// or mqtts:// — e.g. mqtt://homeassistant.local:1883</div>
-        </div>
-        <div class="gw-row">
-          <div class="gw-field">
-            <label>MQTT Username</label>
-            <input type="text" id="gwMqttUser" placeholder="ha_user" spellcheck="false" autocomplete="off">
-          </div>
-          <div class="gw-field">
-            <label>MQTT Password</label>
-            <input type="password" id="gwMqttPass" placeholder="••••••••" autocomplete="off">
-          </div>
-        </div>
-        <div class="gw-field">
-          <label>Gateway Device ID</label>
-          <input type="text" id="gwDeviceId" placeholder="gw01" maxlength="31" spellcheck="false" autocomplete="off">
-          <div class="hint">Short identifier for MQTT topics — e.g. batear/nodes/gw01/status</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Firmware Cards -->
-    <section class="cards">
-
-      <div class="card">
-        <span class="card-badge detector">Detector</span>
-        <h3>Acoustic Detector</h3>
+    <!-- Role Info -->
+    <div class="role-info">
+      <div class="role-info-panel active" data-role="detector">
         <p>Captures audio via ICS-43434 MEMS microphone, runs FFT-based harmonic analysis, and transmits drone alerts over encrypted LoRa.</p>
         <div class="specs">
           <span>I2S Mic + DSP</span>
           <span>LoRa TX (SX1262)</span>
           <span>AES-128-GCM</span>
+          <span>Heltec WiFi LoRa 32 V3</span>
         </div>
-        <esp-web-install-button id="btnDetector" manifest="manifest_detector.json">
-          <button slot="activate" class="detect-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            Install Detector
-          </button>
-        </esp-web-install-button>
       </div>
-
-      <div class="card">
-        <span class="card-badge gateway">Gateway</span>
-        <h3>Alert Gateway</h3>
-        <p>Receives encrypted LoRa alerts from detectors, displays status on OLED, and forwards events to Home Assistant via MQTT.</p>
+      <div class="role-info-panel" data-role="gateway">
+        <p>Receives encrypted LoRa alerts from detectors, displays status on OLED, and forwards events to Home Assistant via MQTT over Wi-Fi.</p>
         <div class="specs">
           <span>LoRa RX (SX1262)</span>
           <span>SSD1306 OLED</span>
           <span>MQTT + HA Discovery</span>
+          <span>Heltec WiFi LoRa 32 V3</span>
         </div>
-        <esp-web-install-button id="btnGateway" manifest="manifest_gateway.json">
-          <button slot="activate" class="gate-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            Install Gateway
-          </button>
-        </esp-web-install-button>
+      </div>
+      <div class="role-info-panel" data-role="wired_detector">
+        <p>Captures audio and publishes drone alerts directly over Ethernet to an MQTT broker. No gateway required &mdash; ideal for fixed installations with PoE.</p>
+        <div class="specs">
+          <span>I2S Mic + DSP</span>
+          <span>W5500 Ethernet / PoE</span>
+          <span>MQTT + HA Discovery</span>
+          <span>LILYGO T-ETH-Lite S3</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config Panel -->
+    <div class="config-panel">
+
+      <!-- Common: Network Key (all roles) -->
+      <div class="section-title">// Network Key</div>
+      <div class="cfg-field">
+        <label>AES-128 Network Key (32 hex chars)</label>
+        <div class="input-row">
+          <input type="text" id="inputAppKey" maxlength="32" placeholder="e.g. A1B2C3D4E5F6071829304A5B6C7D8E9F" spellcheck="false" autocomplete="off">
+          <button class="btn-sm" id="btnGenKey" title="Generate random key">Generate</button>
+        </div>
+        <div class="hint" id="hintAppKey">Same key must be used on all Detectors and the Gateway.</div>
       </div>
 
-    </section>
+      <!-- Detector config -->
+      <div class="role-config active" data-role="detector">
+        <div class="cfg-field">
+          <label>Detector Device ID (0&ndash;255)</label>
+          <div class="input-row">
+            <input type="number" id="detDeviceId" min="0" max="255" step="1" placeholder="1" style="max-width:120px">
+          </div>
+          <div class="hint" id="hintDetDevId">Unique per detector &mdash; the gateway shows which device triggered an alarm.</div>
+        </div>
+      </div>
+
+      <!-- Gateway config -->
+      <div class="role-config" data-role="gateway">
+        <hr class="cfg-divider">
+        <div class="section-title">// Gateway &mdash; Wi-Fi / MQTT</div>
+        <div class="cfg-row">
+          <div class="cfg-field">
+            <label>Wi-Fi SSID</label>
+            <input type="text" id="gwWifiSsid" placeholder="MyNetwork" spellcheck="false" autocomplete="off">
+          </div>
+          <div class="cfg-field">
+            <label>Wi-Fi Password</label>
+            <input type="password" id="gwWifiPass" placeholder="••••••••" autocomplete="off">
+          </div>
+        </div>
+        <div class="cfg-field">
+          <label>MQTT Broker URL</label>
+          <input type="text" id="gwMqttUrl" placeholder="mqtt://192.168.1.100:1883" spellcheck="false" autocomplete="off">
+          <div class="hint">Use mqtt:// or mqtts:// &mdash; e.g. mqtt://homeassistant.local:1883</div>
+        </div>
+        <div class="cfg-row">
+          <div class="cfg-field">
+            <label>MQTT Username</label>
+            <input type="text" id="gwMqttUser" placeholder="ha_user" spellcheck="false" autocomplete="off">
+          </div>
+          <div class="cfg-field">
+            <label>MQTT Password</label>
+            <input type="password" id="gwMqttPass" placeholder="••••••••" autocomplete="off">
+          </div>
+        </div>
+        <div class="cfg-field">
+          <label>Gateway Device ID</label>
+          <input type="text" id="gwDeviceId" placeholder="gw01" maxlength="31" spellcheck="false" autocomplete="off">
+          <div class="hint">Short identifier for MQTT topics &mdash; e.g. batear/nodes/gw01/status</div>
+        </div>
+      </div>
+
+      <!-- Wired Detector config -->
+      <div class="role-config" data-role="wired_detector">
+        <div class="cfg-field">
+          <label>Detector Device ID (0&ndash;255)</label>
+          <div class="input-row">
+            <input type="number" id="wdDeviceId" min="0" max="255" step="1" placeholder="1" style="max-width:120px">
+          </div>
+          <div class="hint">Unique per detector &mdash; included in MQTT status payloads.</div>
+        </div>
+        <hr class="cfg-divider">
+        <div class="section-title">// MQTT / Home Assistant</div>
+        <div class="cfg-field">
+          <label>MQTT Broker URL</label>
+          <input type="text" id="wdMqttUrl" placeholder="mqtt://192.168.1.100:1883" spellcheck="false" autocomplete="off">
+          <div class="hint">Use mqtt:// or mqtts:// &mdash; e.g. mqtt://homeassistant.local:1883</div>
+        </div>
+        <div class="cfg-row">
+          <div class="cfg-field">
+            <label>MQTT Username</label>
+            <input type="text" id="wdMqttUser" placeholder="ha_user" spellcheck="false" autocomplete="off">
+          </div>
+          <div class="cfg-field">
+            <label>MQTT Password</label>
+            <input type="password" id="wdMqttPass" placeholder="••••••••" autocomplete="off">
+          </div>
+        </div>
+        <div class="cfg-field">
+          <label>Wired Device ID</label>
+          <input type="text" id="wdWiredId" placeholder="wd01" maxlength="31" spellcheck="false" autocomplete="off">
+          <div class="hint">Short identifier for MQTT topics &mdash; e.g. batear/nodes/wd01/status</div>
+        </div>
+
+        <hr class="cfg-divider">
+        <div class="section-title">// REST API / OTA</div>
+        <div class="cfg-field">
+          <label>HTTP Auth Token</label>
+          <input type="password" id="wdHttpToken" placeholder="(optional — empty = no auth)" autocomplete="off">
+          <div class="hint">Bearer token for POST endpoints (/api/ota, /api/config, /api/reboot). Leave empty to allow unauthenticated access.</div>
+        </div>
+
+        <!-- Static IP (optional) -->
+        <label class="static-ip-toggle">
+          <input type="checkbox" id="staticIpEnable">
+          Use static IP (leave unchecked for DHCP)
+        </label>
+        <div class="static-ip-fields" id="staticIpFields">
+          <div class="cfg-row">
+            <div class="cfg-field">
+              <label>IP Address</label>
+              <input type="text" id="wdEthIp" placeholder="192.168.1.50" spellcheck="false" autocomplete="off">
+            </div>
+            <div class="cfg-field">
+              <label>Gateway</label>
+              <input type="text" id="wdEthGw" placeholder="192.168.1.1" spellcheck="false" autocomplete="off">
+            </div>
+          </div>
+          <div class="cfg-row">
+            <div class="cfg-field">
+              <label>Subnet Mask</label>
+              <input type="text" id="wdEthMask" placeholder="255.255.255.0" spellcheck="false" autocomplete="off">
+            </div>
+            <div class="cfg-field">
+              <label>DNS Server</label>
+              <input type="text" id="wdEthDns" placeholder="8.8.8.8" spellcheck="false" autocomplete="off">
+              <div class="hint">Optional &mdash; defaults to gateway address</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div class="key-status default-key" id="keyStatus">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M10 2L18 17H2L10 2Z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M10 8v4M10 14v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span>No configuration entered &mdash; firmware will use compile-time defaults.</span>
+      </div>
+    </div>
+
+    <!-- Install Button -->
+    <div class="install-section">
+      <esp-web-install-button id="btnInstall" manifest="manifest_detector.json">
+        <button slot="activate" id="installBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          <span id="installLabel">Install Detector</span>
+        </button>
+      </esp-web-install-button>
+    </div>
 
     <!-- Connection Guide -->
     <section class="section">
@@ -303,12 +395,12 @@
         <div class="step">
           <div class="step-num">01</div>
           <h4>Connect via USB-C</h4>
-          <p>Plug your board into your computer using a USB-C data cable (not charge-only).</p>
+          <p>Plug your <strong>Heltec WiFi LoRa 32 V3 / V4</strong> or <strong>LILYGO T-ETH-Lite S3</strong> into your computer using a USB-C data cable (not charge-only).</p>
         </div>
         <div class="step">
           <div class="step-num">02</div>
-          <h4>Select Firmware</h4>
-          <p>Choose <strong>Detector</strong> for mic nodes or <strong>Gateway</strong> for the OLED alert receiver. Click the Install button.</p>
+          <h4>Choose Role &amp; Configure</h4>
+          <p>Select your firmware role in the tab selector above. Fill in any configuration fields, then click <strong>Install</strong>.</p>
         </div>
         <div class="step">
           <div class="step-num">03</div>
@@ -360,9 +452,9 @@
         <details class="faq">
           <summary>How do I configure the network key and device ID?</summary>
           <div class="answer">
-            Enter a 32-character hex key in the <strong>Network Key</strong> field above before
-            flashing. The same key must be used on both the Detector and Gateway. Click
-            <strong>Generate</strong> to create a random key, then flash both devices.
+            Enter a 32-character hex key in the <strong>Network Key</strong> field before
+            flashing. The same key must be used on all Detectors and the Gateway. Click
+            <strong>Generate</strong> to create a random key, then flash all devices with it.
             For detectors, assign a unique <strong>Device ID</strong> (0&ndash;255) so the
             gateway can identify which detector triggered an alarm.
             Both values are stored in NVS (non-volatile storage) at offset <code>0x9000</code>.
@@ -371,9 +463,30 @@
           </div>
         </details>
         <details class="faq">
+          <summary>How do I configure the wired detector?</summary>
+          <div class="answer">
+            Select the <strong>Wired Detector</strong> tab and fill in MQTT broker URL,
+            username, password, and a unique device ID. To assign a static IP instead of DHCP,
+            check <strong>Use static IP</strong> and enter the IP, gateway, subnet mask, and
+            optional DNS server. These values are written to NVS and applied on boot.
+          </div>
+        </details>
+        <details class="faq">
+          <summary>How do I update the wired detector firmware remotely?</summary>
+          <div class="answer">
+            The wired detector includes a built-in REST API on port <code>8080</code>.
+            Upload a new firmware binary with:
+            <code>curl -X POST --data-binary @firmware.bin http://&lt;ip&gt;:8080/api/ota</code>.
+            If you set an HTTP auth token, add
+            <code>-H "Authorization: Bearer &lt;token&gt;"</code>.
+            The device reboots automatically after a successful upload, and rolls back if the
+            new firmware fails to start.
+          </div>
+        </details>
+        <details class="faq">
           <summary>How do I connect the gateway to Home Assistant?</summary>
           <div class="answer">
-            Enable the <strong>Gateway &mdash; MQTT / Home Assistant</strong> section above and fill
+            Select the <strong>Gateway</strong> tab and fill
             in your Wi-Fi credentials and MQTT broker URL (e.g. <code>mqtt://192.168.1.100:1883</code>).
             These are written to NVS and the gateway will connect to Wi-Fi &amp; MQTT on boot.
             Home Assistant discovers the gateway automatically via MQTT Discovery &mdash; no manual
@@ -383,8 +496,10 @@
         <details class="faq">
           <summary>Which boards are supported?</summary>
           <div class="answer">
-            The <strong>Heltec WiFi LoRa 32 V3</strong> and <strong>V4</strong> (ESP32-S3 + SX1262) are supported.
-            Both boards share the same GPIO mapping and peripherals.
+            <strong>Heltec WiFi LoRa 32 V3 / V4</strong> (ESP32-S3 + SX1262) &mdash; used for
+            Detector and Gateway roles.<br>
+            <strong>LILYGO T-ETH-Lite S3</strong> (ESP32-S3 + W5500 Ethernet) &mdash; used for
+            the Wired Detector role.
           </div>
         </details>
       </div>
@@ -405,7 +520,7 @@
   </footer>
 
   <script type="module">
-    import { generateNvsImage, generateGatewayNvsImage, hexToBytes, generateRandomKey } from "./nvs_gen.js";
+    import { generateNvsImage, generateGatewayNvsImage, generateWiredNvsImage, hexToBytes, generateRandomKey } from "./nvs_gen.js";
 
     if (!("serial" in navigator)) {
       document.getElementById("notSupported").style.display = "block";
@@ -413,42 +528,85 @@
 
     const REPO = "batear-io/batear";
     const NVS_OFFSET = 0x9000;
-    const NVS_PAGE_SIZE = 4096;
 
-    const select    = document.getElementById("versionSelect");
-    const loading   = document.getElementById("versionLoading");
-    const btnDet    = document.getElementById("btnDetector");
-    const btnGw     = document.getElementById("btnGateway");
-    const inputKey  = document.getElementById("inputAppKey");
-    const btnGen    = document.getElementById("btnGenKey");
-    const hintKey   = document.getElementById("hintAppKey");
-    const keyStatus = document.getElementById("keyStatus");
-    const inputDevId = document.getElementById("inputDeviceId");
-    const hintDevId  = document.getElementById("hintDeviceId");
+    /* ---- Role state ---- */
+    let currentRole = "detector";
+    const ROLE_LABELS = {
+      detector: "Detector",
+      gateway: "Gateway",
+      wired_detector: "Wired Detector"
+    };
+    const ROLE_FW = {
+      detector: "detector",
+      gateway: "gateway",
+      wired_detector: "wired_detector"
+    };
+    const ROLE_MANIFEST = {
+      detector: "manifest_detector.json",
+      gateway: "manifest_gateway.json",
+      wired_detector: "manifest_wired_detector.json"
+    };
 
-    const gwEnable    = document.getElementById("gwEnable");
-    const gwFields    = document.getElementById("gwFields");
-    const gwWifiSsid  = document.getElementById("gwWifiSsid");
-    const gwWifiPass  = document.getElementById("gwWifiPass");
-    const gwMqttUrl   = document.getElementById("gwMqttUrl");
-    const gwMqttUser  = document.getElementById("gwMqttUser");
-    const gwMqttPass  = document.getElementById("gwMqttPass");
-    const gwDeviceId  = document.getElementById("gwDeviceId");
+    /* ---- DOM refs ---- */
+    const select       = document.getElementById("versionSelect");
+    const loading      = document.getElementById("versionLoading");
+    const btnInstall   = document.getElementById("btnInstall");
+    const installLabel = document.getElementById("installLabel");
+    const inputKey     = document.getElementById("inputAppKey");
+    const btnGen       = document.getElementById("btnGenKey");
+    const hintKey      = document.getElementById("hintAppKey");
+    const keyStatus    = document.getElementById("keyStatus");
 
-    gwEnable.addEventListener("change", () => {
-      gwFields.classList.toggle("visible", gwEnable.checked);
+    const detDeviceId  = document.getElementById("detDeviceId");
+    const hintDetDevId = document.getElementById("hintDetDevId");
+
+    const gwWifiSsid   = document.getElementById("gwWifiSsid");
+    const gwWifiPass   = document.getElementById("gwWifiPass");
+    const gwMqttUrl    = document.getElementById("gwMqttUrl");
+    const gwMqttUser   = document.getElementById("gwMqttUser");
+    const gwMqttPass   = document.getElementById("gwMqttPass");
+    const gwDeviceId   = document.getElementById("gwDeviceId");
+
+    const wdDeviceId   = document.getElementById("wdDeviceId");
+    const wdMqttUrl    = document.getElementById("wdMqttUrl");
+    const wdMqttUser   = document.getElementById("wdMqttUser");
+    const wdMqttPass   = document.getElementById("wdMqttPass");
+    const wdWiredId    = document.getElementById("wdWiredId");
+    const wdHttpToken  = document.getElementById("wdHttpToken");
+    const staticIpEnable = document.getElementById("staticIpEnable");
+    const staticIpFields = document.getElementById("staticIpFields");
+    const wdEthIp      = document.getElementById("wdEthIp");
+    const wdEthGw      = document.getElementById("wdEthGw");
+    const wdEthMask    = document.getElementById("wdEthMask");
+    const wdEthDns     = document.getElementById("wdEthDns");
+
+    /* ---- Tab switching ---- */
+    const tabs       = document.querySelectorAll(".role-tab");
+    const infoPanels = document.querySelectorAll(".role-info-panel");
+    const cfgPanels  = document.querySelectorAll(".role-config");
+
+    function setRole(role) {
+      currentRole = role;
+      tabs.forEach(t => t.classList.toggle("active", t.dataset.role === role));
+      infoPanels.forEach(p => p.classList.toggle("active", p.dataset.role === role));
+      cfgPanels.forEach(p => p.classList.toggle("active", p.dataset.role === role));
+      installLabel.textContent = `Install ${ROLE_LABELS[role]}`;
       validateAndUpdate();
-    });
-    for (const el of [gwWifiSsid, gwWifiPass, gwMqttUrl, gwMqttUser, gwMqttPass, gwDeviceId]) {
-      el.addEventListener("input", validateAndUpdate);
     }
 
-    let manifestUrls = {};
-    let patchedUrls  = {};
+    tabs.forEach(tab => {
+      tab.addEventListener("click", () => setRole(tab.dataset.role));
+    });
 
+    staticIpEnable.addEventListener("change", () => {
+      staticIpFields.classList.toggle("visible", staticIpEnable.checked);
+      validateAndUpdate();
+    });
+
+    /* ---- Helpers ---- */
     const pageBase = window.location.href.replace(/[^/]*$/, "");
-
-    /* Binary cache: keyed by firmware URL → ArrayBuffer */
+    let manifestUrl = null;
+    let patchedUrl  = null;
     const fwCache = {};
 
     async function fetchFirmware(url) {
@@ -459,17 +617,26 @@
       return fwCache[url];
     }
 
-    /* ---- NVS generation ---- */
+    function fwUrl(tag, role) {
+      return `${pageBase}firmware/${tag}/merged_${role}.bin`;
+    }
 
     function getValidKey() {
       const raw = inputKey.value.replace(/[:\s-]/g, "");
-      if (raw.length !== 32) return null;
-      if (!/^[0-9a-fA-F]{32}$/.test(raw)) return null;
+      if (raw.length !== 32 || !/^[0-9a-fA-F]{32}$/.test(raw)) return null;
       return raw;
     }
 
-    function getDeviceId() {
-      const val = inputDevId.value.trim();
+    function getDetDeviceId() {
+      const val = detDeviceId.value.trim();
+      if (val === "") return null;
+      const n = parseInt(val, 10);
+      if (isNaN(n) || n < 0 || n > 255) return null;
+      return n;
+    }
+
+    function getWdDeviceId() {
+      const val = wdDeviceId.value.trim();
       if (val === "") return null;
       const n = parseInt(val, 10);
       if (isNaN(n) || n < 0 || n > 255) return null;
@@ -477,7 +644,6 @@
     }
 
     function getGwConfig() {
-      if (!gwEnable.checked) return null;
       const cfg = {};
       if (gwWifiSsid.value.trim()) cfg.wifiSsid = gwWifiSsid.value.trim();
       if (gwWifiPass.value)        cfg.wifiPass  = gwWifiPass.value;
@@ -485,16 +651,23 @@
       if (gwMqttUser.value.trim()) cfg.mqttUser  = gwMqttUser.value.trim();
       if (gwMqttPass.value)        cfg.mqttPass  = gwMqttPass.value;
       if (gwDeviceId.value.trim()) cfg.deviceId  = gwDeviceId.value.trim();
-      if (Object.keys(cfg).length === 0) return null;
-      return cfg;
+      return Object.keys(cfg).length > 0 ? cfg : null;
     }
 
-    function needsNvsPatch() {
-      return getValidKey() !== null || getDeviceId() !== null;
-    }
-
-    function needsGwPatch() {
-      return getGwConfig() !== null;
+    function getWiredConfig() {
+      const cfg = {};
+      if (wdMqttUrl.value.trim())  cfg.mqttUrl   = wdMqttUrl.value.trim();
+      if (wdMqttUser.value.trim()) cfg.mqttUser  = wdMqttUser.value.trim();
+      if (wdMqttPass.value)        cfg.mqttPass  = wdMqttPass.value;
+      if (wdWiredId.value.trim())    cfg.deviceId  = wdWiredId.value.trim();
+      if (wdHttpToken.value.trim()) cfg.httpToken = wdHttpToken.value.trim();
+      if (staticIpEnable.checked) {
+        if (wdEthIp.value.trim())   cfg.ethIp   = wdEthIp.value.trim();
+        if (wdEthGw.value.trim())   cfg.ethGw   = wdEthGw.value.trim();
+        if (wdEthMask.value.trim()) cfg.ethMask = wdEthMask.value.trim();
+        if (wdEthDns.value.trim())  cfg.ethDns  = wdEthDns.value.trim();
+      }
+      return Object.keys(cfg).length > 0 ? cfg : null;
     }
 
     function patchFirmware(fwBuf, nvsImage) {
@@ -511,8 +684,6 @@
       return patched.buffer;
     }
 
-    /* ---- Manifest building ---- */
-
     function makeSimpleManifest(name, binUrl) {
       return URL.createObjectURL(new Blob([JSON.stringify({
         name: `Batear ${name}`,
@@ -522,86 +693,69 @@
       })], { type: "application/json" }));
     }
 
-    function revokeAll() {
-      for (const u of Object.values(manifestUrls)) if (u) URL.revokeObjectURL(u);
-      for (const u of Object.values(patchedUrls))  if (u) URL.revokeObjectURL(u);
-      manifestUrls = {};
-      patchedUrls  = {};
+    function revokeUrls() {
+      if (manifestUrl) { URL.revokeObjectURL(manifestUrl); manifestUrl = null; }
+      if (patchedUrl)  { URL.revokeObjectURL(patchedUrl);  patchedUrl  = null; }
     }
 
-    function fwUrl(tag, role) {
-      return `${pageBase}firmware/${tag}/merged_${role}.bin`;
-    }
-
+    /* ---- Build and apply manifest for current role ---- */
     async function updateManifests() {
-      revokeAll();
-      const tag = select.value;
+      revokeUrls();
+      const tag  = select.value;
+      const role = currentRole;
       const validKey = getValidKey();
-      const devId    = getDeviceId();
-      const gwCfg    = getGwConfig();
-      const patchDet = needsNvsPatch();
-      const patchGw  = patchDet || needsGwPatch();
-
       const appKey = validKey ? hexToBytes(validKey) : hexToBytes("DEADBEEFCAFEBABE13374200F00DAA55");
       const devEui = new Uint8Array(8);
 
-      if (!patchDet && !patchGw) {
-        manifestUrls.det = makeSimpleManifest("Detector " + tag, fwUrl(tag, "detector"));
-        manifestUrls.gw  = makeSimpleManifest("Gateway " + tag, fwUrl(tag, "gateway"));
-      } else {
-        const fetches = [];
-        if (patchDet) fetches.push(fetchFirmware(fwUrl(tag, "detector")));
-        if (patchGw)  fetches.push(fetchFirmware(fwUrl(tag, "gateway")));
-        const buffers = await Promise.all(fetches);
-        let bufIdx = 0;
+      let needsPatch = false;
+      let nvsImage = null;
 
-        if (patchDet) {
-          const nvsDetector = generateNvsImage(devEui, appKey, devId);
-          patchedUrls.det = URL.createObjectURL(
-            new Blob([patchFirmware(buffers[bufIdx++], nvsDetector)], { type: "application/octet-stream" }));
-          manifestUrls.det = makeSimpleManifest("Detector " + tag, patchedUrls.det);
-        } else {
-          manifestUrls.det = makeSimpleManifest("Detector " + tag, fwUrl(tag, "detector"));
+      if (role === "detector") {
+        const devId = getDetDeviceId();
+        needsPatch = validKey !== null || devId !== null;
+        if (needsPatch) {
+          nvsImage = generateNvsImage(devEui, appKey, devId);
         }
-
-        if (patchGw) {
-          const nvsGateway = gwCfg
+      } else if (role === "gateway") {
+        const gwCfg = getGwConfig();
+        needsPatch = validKey !== null || gwCfg !== null;
+        if (needsPatch) {
+          nvsImage = gwCfg
             ? generateGatewayNvsImage(devEui, appKey, gwCfg)
             : generateNvsImage(devEui, appKey, null);
-          patchedUrls.gw = URL.createObjectURL(
-            new Blob([patchFirmware(buffers[bufIdx++], nvsGateway)], { type: "application/octet-stream" }));
-          manifestUrls.gw = makeSimpleManifest("Gateway " + tag, patchedUrls.gw);
-        } else {
-          manifestUrls.gw = makeSimpleManifest("Gateway " + tag, fwUrl(tag, "gateway"));
+        }
+      } else if (role === "wired_detector") {
+        const devId = getWdDeviceId();
+        const wdCfg = getWiredConfig();
+        needsPatch = validKey !== null || devId !== null || wdCfg !== null;
+        if (needsPatch) {
+          nvsImage = wdCfg
+            ? generateWiredNvsImage(devEui, appKey, devId, wdCfg)
+            : generateNvsImage(devEui, appKey, devId);
         }
       }
 
-      btnDet.setAttribute("manifest", manifestUrls.det);
-      btnGw.setAttribute("manifest", manifestUrls.gw);
+      if (needsPatch && nvsImage) {
+        const fwBuf = await fetchFirmware(fwUrl(tag, ROLE_FW[role]));
+        patchedUrl = URL.createObjectURL(
+          new Blob([patchFirmware(fwBuf, nvsImage)], { type: "application/octet-stream" }));
+        manifestUrl = makeSimpleManifest(`${ROLE_LABELS[role]} ${tag}`, patchedUrl);
+      } else {
+        manifestUrl = makeSimpleManifest(`${ROLE_LABELS[role]} ${tag}`, fwUrl(tag, ROLE_FW[role]));
+      }
+
+      btnInstall.setAttribute("manifest", manifestUrl);
     }
 
-    /* ---- Key input validation ---- */
-
+    /* ---- Validation + debounced update ---- */
     let updateTimer = null;
 
     function validateAndUpdate() {
-      const raw = inputKey.value.replace(/[:\s-]/g, "");
-      const devId = getDeviceId();
       inputKey.classList.remove("invalid");
       hintKey.classList.remove("error");
-      hintKey.textContent = "Same key must be used on both Detector and Gateway.";
+      hintKey.textContent = "Same key must be used on all Detectors and the Gateway.";
 
-      inputDevId.classList.remove("invalid");
-      hintDevId.classList.remove("error");
-      hintDevId.textContent = "Unique per detector \u2014 the gateway shows which device triggered an alarm.";
-
-      const devIdRaw = inputDevId.value.trim();
-      if (devIdRaw !== "" && devId === null) {
-        inputDevId.classList.add("invalid");
-        hintDevId.classList.add("error");
-        hintDevId.textContent = "Must be a whole number 0\u2013255.";
-      }
-
+      const raw = inputKey.value.replace(/[:\s-]/g, "");
       let hasKey = false;
       if (raw.length > 0) {
         if (raw.length !== 32 || !/^[0-9a-fA-F]+$/.test(raw)) {
@@ -615,48 +769,61 @@
         }
       }
 
-      const gwCfg = getGwConfig();
+      let hasRoleConfig = false;
+      if (currentRole === "detector") {
+        hasRoleConfig = getDetDeviceId() !== null;
+      } else if (currentRole === "gateway") {
+        hasRoleConfig = getGwConfig() !== null;
+      } else if (currentRole === "wired_detector") {
+        hasRoleConfig = getWdDeviceId() !== null || getWiredConfig() !== null;
+      }
 
-      if (!hasKey && devId === null && !gwCfg) {
+      if (!hasKey && !hasRoleConfig) {
         keyStatus.className = "key-status default-key";
         keyStatus.querySelector("span").textContent =
-          "No key or device ID entered \u2014 firmware uses compile-time defaults.";
+          "No configuration entered \u2014 firmware will use compile-time defaults.";
         clearTimeout(updateTimer);
         updateManifests();
         return;
       }
 
       keyStatus.className = "key-status provisioned";
-      keyStatus.querySelector("span").textContent =
-        "Preparing patched firmware\u2026";
+      keyStatus.querySelector("span").textContent = "Preparing patched firmware\u2026";
 
       clearTimeout(updateTimer);
       updateTimer = setTimeout(async () => {
         await updateManifests();
-        if (needsNvsPatch() || gwCfg) {
-          const parts = [];
-          if (hasKey) parts.push("custom key");
-          if (devId !== null) parts.push(`device ID ${devId}`);
-          if (gwCfg) parts.push("MQTT/WiFi config");
-          keyStatus.querySelector("span").textContent =
-            `Firmware patched with ${parts.join(" + ")} \u2014 ready to flash.`;
+        const parts = [];
+        if (hasKey) parts.push("custom key");
+        if (currentRole === "detector" && getDetDeviceId() !== null) parts.push(`device ID ${getDetDeviceId()}`);
+        if (currentRole === "gateway" && getGwConfig()) parts.push("Wi-Fi/MQTT config");
+        if (currentRole === "wired_detector") {
+          if (getWdDeviceId() !== null) parts.push(`device ID ${getWdDeviceId()}`);
+          if (getWiredConfig()) parts.push("MQTT" + (staticIpEnable.checked ? " + static IP" : "") + " config");
         }
+        keyStatus.querySelector("span").textContent =
+          `Firmware patched with ${parts.join(" + ")} \u2014 ready to flash.`;
       }, 300);
     }
 
+    /* ---- Input listeners ---- */
     inputKey.addEventListener("input", validateAndUpdate);
-    inputDevId.addEventListener("input", validateAndUpdate);
+    detDeviceId.addEventListener("input", validateAndUpdate);
+    for (const el of [gwWifiSsid, gwWifiPass, gwMqttUrl, gwMqttUser, gwMqttPass, gwDeviceId]) {
+      el.addEventListener("input", validateAndUpdate);
+    }
+    for (const el of [wdDeviceId, wdMqttUrl, wdMqttUser, wdMqttPass, wdWiredId, wdHttpToken, wdEthIp, wdEthGw, wdEthMask, wdEthDns]) {
+      el.addEventListener("input", validateAndUpdate);
+    }
 
     btnGen.addEventListener("click", () => {
       inputKey.value = generateRandomKey(16);
       validateAndUpdate();
     });
 
-    /* ---- Version picker ---- */
-
     select.addEventListener("change", () => updateManifests());
 
-    /* Initial manifest setup */
+    /* ---- Initial setup ---- */
     updateManifests();
 
     fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`)

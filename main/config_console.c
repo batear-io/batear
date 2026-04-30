@@ -136,11 +136,13 @@ static int cmd_show(int argc, char **argv)
         bool opened = (nvs_open("lora_cfg", NVS_READONLY, &h) == ESP_OK);
         if (opened) {
             print_nvs_blob_hex(h, "app_key", "net_key", 16);
-#ifdef CONFIG_BATEAR_ROLE_DETECTOR
+#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
             print_nvs_u8(h, "device_id", "device_id");
 #endif
+#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
             print_nvs_u32(h, "lora_freq", "lora_freq", "kHz");
             print_nvs_u8_hex(h, "sync_word", "sync_word");
+#endif
             nvs_close(h);
         } else {
             printf("  (namespace not found — using Kconfig defaults)\n");
@@ -148,11 +150,15 @@ static int cmd_show(int argc, char **argv)
     }
     printf("  Kconfig defaults:\n");
     printf("    net_key    = %s\n", CONFIG_BATEAR_NET_KEY);
-#ifdef CONFIG_BATEAR_ROLE_DETECTOR
+#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
     printf("    device_id  = %d\n", CONFIG_BATEAR_DEVICE_ID);
 #endif
+#ifdef CONFIG_BATEAR_LORA_FREQ
     printf("    lora_freq  = %d kHz\n", CONFIG_BATEAR_LORA_FREQ);
+#endif
+#ifdef CONFIG_BATEAR_LORA_SYNC_WORD
     printf("    sync_word  = 0x%02X\n", CONFIG_BATEAR_LORA_SYNC_WORD);
+#endif
 
 #ifdef CONFIG_BATEAR_ROLE_GATEWAY
     printf("\n[gateway_cfg]  (WiFi / MQTT)\n");
@@ -175,6 +181,37 @@ static int cmd_show(int argc, char **argv)
     printf("    wifi_ssid  = %s\n", CONFIG_BATEAR_WIFI_SSID);
     printf("    mqtt_url   = %s\n", CONFIG_BATEAR_MQTT_BROKER_URL);
     printf("    device_id  = %s\n", CONFIG_BATEAR_GW_DEVICE_ID);
+#endif
+
+#ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR
+    printf("\n[wired_cfg]  (Ethernet / MQTT)\n");
+    {
+        nvs_handle_t h;
+        bool opened = (nvs_open("wired_cfg", NVS_READONLY, &h) == ESP_OK);
+        if (opened) {
+            print_nvs_str(h, "mqtt_url",  "mqtt_url");
+            print_nvs_str(h, "mqtt_user", "mqtt_user");
+            print_nvs_str(h, "mqtt_pass", "mqtt_pass");
+            print_nvs_str(h, "device_id", "device_id");
+            print_nvs_str(h, "eth_ip",    "eth_ip");
+            print_nvs_str(h, "eth_gw",    "eth_gw");
+            print_nvs_str(h, "eth_mask",  "eth_mask");
+            print_nvs_str(h, "eth_dns",   "eth_dns");
+            print_nvs_str(h, "http_token","http_token");
+            nvs_close(h);
+        } else {
+            printf("  (namespace not found — using Kconfig defaults)\n");
+        }
+    }
+    printf("  Kconfig defaults:\n");
+    printf("    mqtt_url   = %s\n", CONFIG_BATEAR_MQTT_BROKER_URL);
+    printf("    device_id  = %s\n", CONFIG_BATEAR_WIRED_DEVICE_ID);
+    printf("    eth_ip     = %s\n",
+           CONFIG_BATEAR_ETH_STATIC_IP[0] ? CONFIG_BATEAR_ETH_STATIC_IP : "(DHCP)");
+    printf("    eth_gw     = %s\n", CONFIG_BATEAR_ETH_GATEWAY);
+    printf("    eth_mask   = %s\n", CONFIG_BATEAR_ETH_NETMASK);
+    printf("    eth_dns    = %s\n",
+           CONFIG_BATEAR_ETH_DNS[0] ? CONFIG_BATEAR_ETH_DNS : "(auto)");
 #endif
 
     printf("\n");
@@ -288,9 +325,11 @@ static int cmd_set(int argc, char **argv)
         printf("Usage: set <key> <value>\n");
         printf("Keys:\n");
         printf("  net_key     — 32 hex chars (AES-128 key)\n");
+#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
         printf("  lora_freq   — frequency in kHz (e.g. 915000, 868000)\n");
         printf("  sync_word   — hex byte (e.g. 12, 34)\n");
-#ifdef CONFIG_BATEAR_ROLE_DETECTOR
+#endif
+#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
         printf("  device_id   — 0-255\n");
 #endif
 #ifdef CONFIG_BATEAR_ROLE_GATEWAY
@@ -299,7 +338,18 @@ static int cmd_set(int argc, char **argv)
         printf("  mqtt_url    — e.g. mqtt://192.168.1.100:1883\n");
         printf("  mqtt_user   — MQTT username\n");
         printf("  mqtt_pass   — MQTT password\n");
-        printf("  device_id   — gateway ID for MQTT topics\n");
+        printf("  mqtt_device_id — gateway ID for MQTT topics\n");
+#endif
+#ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR
+        printf("  mqtt_url    — e.g. mqtt://192.168.1.100:1883\n");
+        printf("  mqtt_user   — MQTT username\n");
+        printf("  mqtt_pass   — MQTT password\n");
+        printf("  mqtt_device_id — wired detector ID for MQTT topics\n");
+        printf("  eth_ip      — static IP (empty string = DHCP)\n");
+        printf("  eth_gw      — default gateway\n");
+        printf("  eth_mask    — subnet mask (default 255.255.255.0)\n");
+        printf("  eth_dns     — DNS server (empty = use gateway)\n");
+        printf("  http_token  — Bearer auth token for REST API (empty = no auth)\n");
 #endif
         return 1;
     }
@@ -317,6 +367,7 @@ static int cmd_set(int argc, char **argv)
         return set_nvs_blob("lora_cfg", "app_key", blob, 16);
     }
 
+#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
     if (strcmp(key, "lora_freq") == 0) {
         long freq = atol(value);
         if (freq < 100000 || freq > 1000000) {
@@ -334,8 +385,9 @@ static int cmd_set(int argc, char **argv)
         }
         return set_nvs_u8("lora_cfg", "sync_word", sw_byte);
     }
+#endif
 
-#ifdef CONFIG_BATEAR_ROLE_DETECTOR
+#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
     if (strcmp(key, "device_id") == 0) {
         int id = atoi(value);
         if (id < 0 || id > 255) {
@@ -357,8 +409,29 @@ static int cmd_set(int argc, char **argv)
         return set_nvs_str("gateway_cfg", "mqtt_user", value);
     if (strcmp(key, "mqtt_pass") == 0)
         return set_nvs_str("gateway_cfg", "mqtt_pass", value);
-    if (strcmp(key, "device_id") == 0)
+    if (strcmp(key, "mqtt_device_id") == 0)
         return set_nvs_str("gateway_cfg", "device_id", value);
+#endif
+
+#ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR
+    if (strcmp(key, "mqtt_url") == 0)
+        return set_nvs_str("wired_cfg", "mqtt_url", value);
+    if (strcmp(key, "mqtt_user") == 0)
+        return set_nvs_str("wired_cfg", "mqtt_user", value);
+    if (strcmp(key, "mqtt_pass") == 0)
+        return set_nvs_str("wired_cfg", "mqtt_pass", value);
+    if (strcmp(key, "mqtt_device_id") == 0)
+        return set_nvs_str("wired_cfg", "device_id", value);
+    if (strcmp(key, "eth_ip") == 0)
+        return set_nvs_str("wired_cfg", "eth_ip", value);
+    if (strcmp(key, "eth_gw") == 0)
+        return set_nvs_str("wired_cfg", "eth_gw", value);
+    if (strcmp(key, "eth_mask") == 0)
+        return set_nvs_str("wired_cfg", "eth_mask", value);
+    if (strcmp(key, "eth_dns") == 0)
+        return set_nvs_str("wired_cfg", "eth_dns", value);
+    if (strcmp(key, "http_token") == 0)
+        return set_nvs_str("wired_cfg", "http_token", value);
 #endif
 
     printf("Error: unknown key '%s'\n", key);
