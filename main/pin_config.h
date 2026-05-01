@@ -59,6 +59,9 @@
 #define BOARD_HAS_VEXT   1
 #define BOARD_HAS_OLED   1
 
+/* No on-board SD card on Heltec V3/V4 */
+#define BOARD_HAS_SDMMC  0
+
 /* LoRa RF traits */
 #define BOARD_LORA_TCXO_V       1.8f
 #define BOARD_LORA_DIO2_AS_RF   true
@@ -103,6 +106,17 @@
 #define PIN_ETH_INT     13
 #define PIN_ETH_RST     14
 #define PIN_ETH_ADDR     1
+
+/* On-board microSD slot — SDMMC 1-bit mode (CLK / CMD / D0 only).
+ * The fourth historical SD pin (GPIO 42) is the D3/CS line in 4-bit / SPI mode
+ * and is left unconfigured in 1-bit mode so it doesn't fight the slot's
+ * internal pull-up. SDMMC uses its own dedicated controller (not SPI), so
+ * there is no bus conflict with the W5500 on SPI2.
+ */
+#define PIN_SD_CLK      6
+#define PIN_SD_CMD      5
+#define PIN_SD_D0       7
+#define BOARD_HAS_SDMMC 1
 
 /* No gateway peripherals on this board */
 #define BOARD_HAS_VEXT   0
