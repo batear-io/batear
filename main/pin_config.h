@@ -107,15 +107,15 @@
 #define PIN_ETH_RST     14
 #define PIN_ETH_ADDR     1
 
-/* On-board microSD slot — SDMMC 1-bit mode (CLK / CMD / D0 only).
- * The fourth historical SD pin (GPIO 42) is the D3/CS line in 4-bit / SPI mode
- * and is left unconfigured in 1-bit mode so it doesn't fight the slot's
- * internal pull-up. SDMMC uses its own dedicated controller (not SPI), so
- * there is no bus conflict with the W5500 on SPI2.
- */
-#define PIN_SD_CLK      6
-#define PIN_SD_CMD      5
-#define PIN_SD_D0       7
+/* On-board microSD slot — SDSPI on SPI3_HOST.
+ * The T-ETH-Lite S3 wires the slot to a 4-pin SPI footprint (MISO/MOSI/SCK/CS),
+ * NOT to the chip's SDMMC peripheral, so we must drive it via the FATFS SDSPI
+ * driver. W5500 already owns SPI2_HOST (see eth_mqtt_task.cpp), so SD goes on
+ * SPI3_HOST. Pins follow LILYGO's official utilities.h. */
+#define PIN_SD_MISO     5
+#define PIN_SD_MOSI     6
+#define PIN_SD_SCK      7
+#define PIN_SD_CS       42
 #define BOARD_HAS_SDMMC 1
 
 /* No gateway peripherals on this board */

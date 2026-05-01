@@ -32,7 +32,7 @@
 
 #include "tf_recorder.h"
 
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
 
 #include "ntp_time.h"
 #include "pin_config.h"
@@ -48,7 +48,8 @@
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "esp_vfs_fat.h"
-#include "driver/sdmmc_host.h"
+#include "driver/sdspi_host.h"
+#include "driver/spi_common.h"
 #include "sdmmc_cmd.h"
 
 #include <dirent.h>
@@ -128,6 +129,27 @@ static void stats_lock(void)   { xSemaphoreTake(s_stats_mtx, portMAX_DELAY); }
 static void stats_unlock(void) { xSemaphoreGive(s_stats_mtx); }
 
 bool tf_recorder_is_ready(void) { return s_mounted; }
+
+/* After a successful mount, EIO / ENODEV / ENXIO from any FATFS syscall
+ * almost always means the slot lost contact (card pulled, dirty pads, brown-
+ * out). One sample is enough — keeping the bus warm just spams the diskio
+ * driver with retries every 5 s. We flip s_mounted off and let every SD
+ * code path no-op until reboot. */
+static bool errno_is_card_gone(int e)
+{
+    return e == EIO || e == ENODEV || e == ENXIO;
+}
+
+static void mark_card_gone(void)
+{
+    if (!s_mounted) return;
+    s_mounted = false;
+    ESP_LOGW(TAG, "SD I/O error — card removed? recording disabled until reboot");
+    stats_lock();
+    s_stats.recording = false;
+    s_stats.mounted   = false;
+    stats_unlock();
+}
 
 const char *tf_recorder_dir(void)
 {
@@ -259,6 +281,7 @@ static uint32_t scan_recordings(uint64_t *total_bytes_out, FileEntry **entries_o
 
     DIR *d = opendir(s_dir);
     if (!d) {
+        if (errno_is_card_gone(errno)) mark_card_gone();
         if (total_bytes_out) *total_bytes_out = 0;
         if (entries_out) *entries_out = NULL;
         return 0;
@@ -303,6 +326,8 @@ static uint32_t scan_recordings(uint64_t *total_bytes_out, FileEntry **entries_o
 /* If used > MAX_MB, delete oldest files until under the cap. */
 static void enforce_fifo_cap(void)
 {
+    if (!s_mounted) return;
+
     const uint64_t cap_bytes = (uint64_t)CONFIG_BATEAR_TF_MAX_MB * 1024ULL * 1024ULL;
     uint64_t total = 0;
     FileEntry *entries = NULL;
@@ -330,6 +355,8 @@ static void enforce_fifo_cap(void)
 
 static void refresh_storage_stats(void)
 {
+    if (!s_mounted) return;
+
     uint64_t used = 0;
     uint32_t files = scan_recordings(&used, NULL);
 
@@ -340,6 +367,8 @@ static void refresh_storage_stats(void)
         uint64_t total_bytes = (uint64_t)vfs.f_blocks * (uint64_t)vfs.f_frsize;
         free_mb  = (uint32_t)(free_bytes  / (1024ULL * 1024ULL));
         total_mb = (uint32_t)(total_bytes / (1024ULL * 1024ULL));
+    } else if (errno_is_card_gone(errno)) {
+        mark_card_gone();
     }
 
     stats_lock();
@@ -376,7 +405,9 @@ static bool wav_open(WavFile *w, const char *suffix)
 
     w->fp = fopen(full, "wb");
     if (!w->fp) {
-        ESP_LOGW(TAG, "fopen %s failed: %s", full, strerror(errno));
+        int e = errno;
+        ESP_LOGW(TAG, "fopen %s failed: %s", full, strerror(e));
+        if (errno_is_card_gone(e)) mark_card_gone();
         return false;
     }
     /* setvbuf to a 4 KB block buffer reduces the number of fwrite syscalls
@@ -408,12 +439,17 @@ static void wav_write_samples(WavFile *w, const int16_t *pcm, size_t n)
     if (!w || !w->fp || n == 0) return;
     size_t wrote = fwrite(pcm, BYTES_PER_SAMPLE, n, w->fp);
     if (wrote != n) {
-        ESP_LOGW(TAG, "fwrite short: %zu/%zu", wrote, n);
+        int e = errno;
+        ESP_LOGW(TAG, "fwrite short: %zu/%zu (errno=%d)", wrote, n, e);
+        if (errno_is_card_gone(e)) mark_card_gone();
     }
     w->data_bytes += (uint32_t)(wrote * BYTES_PER_SAMPLE);
 
-    /* Periodically refresh the data_size field so a power loss leaves a
-     * playable file (most players honour the in-place size). */
+    /* Periodically refresh the data_size field AND fsync the FATFS metadata
+     * so a power loss / yanked-card mid-recording leaves a parseable file.
+     * fflush only flushes stdio's userspace buffer to FATFS; without fsync,
+     * FATFS keeps the directory-entry size at 0 until fclose, so the card's
+     * file system shows a 0-byte file when read on another host. */
     int64_t now = esp_timer_get_time();
     if (now - w->last_header_refresh_us > (int64_t)HEADER_REFRESH_SEC * 1000000LL) {
         long pos = ftell(w->fp);
@@ -426,6 +462,7 @@ static void wav_write_samples(WavFile *w, const int16_t *pcm, size_t n)
                 fseek(w->fp, pos, SEEK_SET);
             }
             fflush(w->fp);
+            fsync(fileno(w->fp));
         }
         w->last_header_refresh_us = now;
     }
@@ -480,9 +517,23 @@ static void writer_task(void *arg)
 #endif
 
     for (;;) {
+        /* 0) if the card was yanked, abandon any open file and stop touching
+         *    the bus. The audio task keeps pushing into the ringbuffer (we
+         *    drain it below to avoid back-pressure), it just doesn't get
+         *    written anywhere. */
+        if (!s_mounted && state != STATE_IDLE) {
+            if (wav.fp) {
+                fclose(wav.fp);
+                wav.fp = NULL;
+            }
+            state = STATE_IDLE;
+            postroll_deadline_us = 0;
+        }
+
         /* 1) drain commands (non-blocking) */
         TfCmd_t cmd;
         while (xQueueReceive(s_cmd_queue, &cmd, 0) == pdTRUE) {
+            if (!s_mounted) continue;  /* silently drop, no I/O */
             switch (cmd.type) {
             case TF_CMD_ALARM_START:
                 if (state == STATE_RECORDING_ALARM) {
@@ -537,7 +588,7 @@ static void writer_task(void *arg)
         if (item != NULL && item_size > 0) {
             size_t n_samples = item_size / BYTES_PER_SAMPLE;
             preroll_push(item, n_samples);
-            if (state != STATE_IDLE && wav.fp) {
+            if (s_mounted && state != STATE_IDLE && wav.fp) {
                 wav_write_samples(&wav, item, n_samples);
             }
             vRingbufferReturnItem(s_pcm_ring, item);
@@ -622,20 +673,31 @@ static esp_err_t mount_sd(void)
         .allocation_unit_size   = 32 * 1024,
     };
 
-    sdmmc_host_t host = SDMMC_HOST_DEFAULT();
-    /* 1-bit so we only need CLK + CMD + D0 (the LilyGo T-ETH-Lite-S3
-     * routes those to GPIO 6/5/7; D3/CS on GPIO 42 is left floating). */
-    host.flags = SDMMC_HOST_FLAG_1BIT;
+    /* W5500 owns SPI2_HOST (eth_mqtt_task), so SD goes on SPI3_HOST. */
+    sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+    host.slot = SPI3_HOST;
 
-    sdmmc_slot_config_t slot_cfg = SDMMC_SLOT_CONFIG_DEFAULT();
-    slot_cfg.width = 1;
-    slot_cfg.clk   = (gpio_num_t)PIN_SD_CLK;
-    slot_cfg.cmd   = (gpio_num_t)PIN_SD_CMD;
-    slot_cfg.d0    = (gpio_num_t)PIN_SD_D0;
-    slot_cfg.flags = SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+    spi_bus_config_t bus_cfg = {
+        .mosi_io_num     = PIN_SD_MOSI,
+        .miso_io_num     = PIN_SD_MISO,
+        .sclk_io_num     = PIN_SD_SCK,
+        .quadwp_io_num   = -1,
+        .quadhd_io_num   = -1,
+        .max_transfer_sz = 4096,
+    };
+    esp_err_t err = spi_bus_initialize((spi_host_device_t)host.slot,
+                                        &bus_cfg, SDSPI_DEFAULT_DMA);
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "SPI bus init failed: %s", esp_err_to_name(err));
+        return err;
+    }
 
-    esp_err_t err = esp_vfs_fat_sdmmc_mount(MOUNT_POINT, &host, &slot_cfg,
-                                             &mount_cfg, &s_card);
+    sdspi_device_config_t slot_cfg = SDSPI_DEVICE_CONFIG_DEFAULT();
+    slot_cfg.gpio_cs = (gpio_num_t)PIN_SD_CS;
+    slot_cfg.host_id = (spi_host_device_t)host.slot;
+
+    err = esp_vfs_fat_sdspi_mount(MOUNT_POINT, &host, &slot_cfg,
+                                   &mount_cfg, &s_card);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "SD mount failed: %s — recording disabled this boot",
                  esp_err_to_name(err));
@@ -707,4 +769,4 @@ esp_err_t tf_recorder_init(const char *wired_id)
 #endif
 }
 
-#endif /* CONFIG_BATEAR_TF_RECORD_ENABLE */
+#endif /* CONFIG_BATEAR_ROLE_WIRED_DETECTOR */

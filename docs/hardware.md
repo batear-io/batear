@@ -53,7 +53,24 @@ See the [ICS-43434 vs INMP441 note above](#detector) for sensitivity / AOP
 differences when choosing between the two mics.
 
 !!! tip
-    GPIO 38/39/40 are on the extension headers of the T-ETH-Lite S3. These pins avoid conflicts with the on-board W5500 Ethernet (GPIO 9–14) and SD card (GPIO 5–7, 42).
+    GPIO 38/39/40 are on the extension headers of the T-ETH-Lite S3. These pins avoid conflicts with the on-board W5500 Ethernet (GPIO 9–14) and the SD card slot (GPIO 5/6/7/42, see below).
+
+### On-board microSD slot
+
+The T-ETH-Lite S3 routes its TF slot to a 4-pin **SPI** footprint (not SDMMC), and the firmware drives it through the FATFS SDSPI driver on `SPI3_HOST` so it doesn't conflict with W5500 on `SPI2_HOST`.
+
+| Slot pin | GPIO | Function |
+|:---|:---|:---|
+| MISO | 5 | SDSPI MISO |
+| MOSI | 6 | SDSPI MOSI |
+| SCK  | 7 | SDSPI clock |
+| CS   | 42 | SDSPI chip select (SD's D3 line in 4-bit mode) |
+
+Use a FAT32-formatted card ≤ 32 GB (SDHC). SDXC cards are typically pre-formatted exFAT, which the IDF SDSPI mount won't accept — reformat to FAT32 first. **Don't pull the card while a recording is in progress** — wait for the `REC stop: …_alarm.wav dur=…s` log line on the serial console so the FATFS directory entry is committed.
+
+### BOOT button (push-to-talk)
+
+The on-board **BOOT** button (`GPIO 0`, the small button beside the RST button) doubles as a push-to-talk capture trigger when `BATEAR_TF_MANUAL_ENABLE=y`. Press = start recording, release = stop. The button has internal pull-up enabled at runtime; the strap reading at next reset is unaffected so `idf.py flash` keeps working unattended.
 
 The wired detector connects directly to your network via Ethernet (RJ45). If you use a PoE expansion board, power and data come through a single cable — ideal for permanent outdoor installations.
 

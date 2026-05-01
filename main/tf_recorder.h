@@ -7,11 +7,11 @@
  * 100 ms I2S hop.
  *
  * Three trigger sources, all going through the same WAV pipeline:
- *   - DRONE_EVENT_ALARM  → CMD_ALARM_START   (auto)
- *   - BOOT long-press    → CMD_MANUAL_START  (operator)
- *   - 60 s rotation tick → CMD_ALWAYS_TICK   (debug, opt-in)
+ *   - DRONE_EVENT_ALARM     → CMD_ALARM_START   (auto)
+ *   - BOOT press / release  → CMD_MANUAL_START / CMD_MANUAL_STOP (push-to-talk)
+ *   - 60 s rotation tick    → CMD_ALWAYS_TICK   (debug, opt-in)
  *
- * Compiled out entirely when CONFIG_BATEAR_TF_RECORD_ENABLE is unset.
+ * Compiled out entirely when CONFIG_BATEAR_ROLE_WIRED_DETECTOR is unset.
  */
 #pragma once
 
@@ -29,8 +29,8 @@ extern "C" {
 typedef enum {
     TF_CMD_ALARM_START   = 1,  /* DRONE_EVENT_ALARM transition */
     TF_CMD_ALARM_CLEAR   = 2,  /* DRONE_EVENT_CLEAR — start post-roll countdown */
-    TF_CMD_MANUAL_START  = 3,  /* BOOT long-press */
-    TF_CMD_MANUAL_STOP   = 4,  /* BOOT short-press during manual recording */
+    TF_CMD_MANUAL_START  = 3,  /* BOOT button pressed   (push-to-talk start) */
+    TF_CMD_MANUAL_STOP   = 4,  /* BOOT button released  (push-to-talk stop)  */
 } TfRecorderCmd;
 
 typedef struct {
@@ -44,10 +44,10 @@ typedef struct {
     char      last_file[64];    /* basename of the most recent recording  */
 } TfRecorderStats;
 
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
 
 /**
- * Initialise SDMMC + FATFS, allocate PSRAM pre-roll ring, start writer task.
+ * Initialise SDSPI + FATFS, allocate PSRAM pre-roll ring, start writer task.
  * `wired_id` is used as the per-device subdirectory under /sdcard/rec.
  * Returns ESP_OK on success. On failure (no card, alloc failure, …) the
  * recorder logs a single warning and all subsequent calls are no-ops, but
@@ -83,9 +83,9 @@ const char *tf_recorder_dir(void);
 /** True after a successful mount; false otherwise (REST returns 503). */
 bool tf_recorder_is_ready(void);
 
-#else /* !CONFIG_BATEAR_TF_RECORD_ENABLE — feature compiled out */
+#else /* !CONFIG_BATEAR_ROLE_WIRED_DETECTOR — feature compiled out */
 
-/* All call sites are inside `#if CONFIG_BATEAR_TF_RECORD_ENABLE`, so when the
+/* All call sites are inside `#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR`, so when the
  * feature is off these no-op stubs have no callers — that's the whole point.
  * Silence cppcheck's --enable=all noise about "unused" functions. */
 
@@ -119,7 +119,7 @@ static inline bool tf_recorder_resolve_path(const char *name, char *out, size_t 
 static inline const char *tf_recorder_dir(void) { return NULL; }
 static inline bool tf_recorder_is_ready(void) { return false; }
 
-#endif /* CONFIG_BATEAR_TF_RECORD_ENABLE */
+#endif /* CONFIG_BATEAR_ROLE_WIRED_DETECTOR */
 
 #ifdef __cplusplus
 }

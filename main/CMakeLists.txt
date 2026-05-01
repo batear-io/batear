@@ -23,10 +23,8 @@ if(CONFIG_BATEAR_ROLE_GATEWAY)
 endif()
 
 if(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
-    list(APPEND SRCS "audio_task.c" "audio_processor.c" "eth_mqtt_task.cpp" "http_api.cpp")
-    if(CONFIG_BATEAR_TF_RECORD_ENABLE)
-        list(APPEND SRCS "tf_recorder.c" "manual_capture.c" "ntp_time.c")
-    endif()
+    list(APPEND SRCS "audio_task.c" "audio_processor.c" "eth_mqtt_task.cpp" "http_api.cpp"
+                     "tf_recorder.c" "manual_capture.c" "ntp_time.c")
 endif()
 
 set(PRIV_DEPS

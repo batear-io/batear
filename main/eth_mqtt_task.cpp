@@ -18,7 +18,7 @@
 #include "lorawan_provision.h"
 #include "sdkconfig.h"
 
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
 #include "tf_recorder.h"
 #include "manual_capture.h"
 #include "ntp_time.h"
@@ -64,7 +64,7 @@ static char s_eth_gw[IP_STR_MAX];
 static char s_eth_mask[IP_STR_MAX];
 static char s_eth_dns[IP_STR_MAX];
 
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
 static char s_ntp_server[64];
 #endif
 
@@ -117,7 +117,7 @@ static void load_config(void)
                      CONFIG_BATEAR_ETH_NETMASK);
         load_nvs_str(h, "eth_dns",  s_eth_dns,   sizeof(s_eth_dns),
                      CONFIG_BATEAR_ETH_DNS);
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
         load_nvs_str(h, "ntp_server", s_ntp_server, sizeof(s_ntp_server),
                      CONFIG_BATEAR_TF_NTP_SERVER);
 #endif
@@ -131,7 +131,7 @@ static void load_config(void)
         strncpy(s_eth_gw,    CONFIG_BATEAR_ETH_GATEWAY,     sizeof(s_eth_gw) - 1);
         strncpy(s_eth_mask,  CONFIG_BATEAR_ETH_NETMASK,     sizeof(s_eth_mask) - 1);
         strncpy(s_eth_dns,   CONFIG_BATEAR_ETH_DNS,         sizeof(s_eth_dns) - 1);
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
         strncpy(s_ntp_server, CONFIG_BATEAR_TF_NTP_SERVER, sizeof(s_ntp_server) - 1);
 #endif
         ESP_LOGW(TAG, "NVS namespace 'wired_cfg' not found — using Kconfig defaults");
@@ -374,7 +374,7 @@ static void publish_ha_discovery(void)
 
     esp_mqtt_client_publish(s_mqtt, topic, payload, 0, 1, 1);
 
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
     /* TF recorder diagnostic sensors. Three readings share s_topic_status's
      * tf_used_mb / tf_free_mb / last_recording fields, refreshed each event. */
     snprintf(topic, sizeof(topic),
@@ -429,7 +429,7 @@ static void publish_ha_discovery(void)
         "}",
         s_device_id, s_device_id, s_topic_status, s_topic_avail, s_device_id);
     esp_mqtt_client_publish(s_mqtt, topic, payload, 0, 1, 1);
-#endif /* CONFIG_BATEAR_TF_RECORD_ENABLE */
+#endif /* CONFIG_BATEAR_ROLE_WIRED_DETECTOR */
 }
 
 /* ================================================================
@@ -536,7 +536,7 @@ extern "C" void EthMqttTask(void *pvParameters)
     mqtt_start();
     http_api_start();
 
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
     /* NTP first so the recorder's first filename has wall-clock time;
      * recorder mounts SD + starts writer task; manual_capture configures
      * GPIO 0 as INPUT (post-bootloader, so flashing still works). */
@@ -551,7 +551,7 @@ extern "C" void EthMqttTask(void *pvParameters)
 
     for (;;) {
         if (xQueueReceive(g_drone_event_queue, &ev, pdMS_TO_TICKS(5000)) == pdTRUE) {
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
             /* Forward state transitions to the recorder regardless of
              * Ethernet/MQTT health — recording must work offline too. */
             if (ev.type == DRONE_EVENT_ALARM) {
@@ -584,7 +584,7 @@ extern "C" void EthMqttTask(void *pvParameters)
             };
             http_api_update_status(&hst);
 
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
             TfRecorderStats tfs;
             tf_recorder_get_stats(&tfs);
             snprintf(json, sizeof(json),

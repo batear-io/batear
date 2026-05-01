@@ -69,14 +69,12 @@ Key parameters in sdkconfig role files:
 | `CONFIG_BATEAR_HTTP_PORT` | REST API port (wired detector only, default 8080) |
 | `CONFIG_BATEAR_HTTP_AUTH_TOKEN` | Bearer token for POST endpoints (empty = no auth). (overridden by NVS) |
 | `CONFIG_BATEAR_TELEMETRY_HEARTBEAT_MIN` | LoRa detector only, 1–60. Silent-period telemetry interval in minutes (default 30). Jittered ±10% in firmware. |
-| `CONFIG_BATEAR_TF_RECORD_ENABLE` | Wired Detector only. Enable microSD audio recording (default off). Requires a board with `BOARD_HAS_SDMMC=1` (LILYGO T-ETH-Lite S3). |
-| `CONFIG_BATEAR_TF_PREROLL_SEC` | Pre-roll seconds kept in PSRAM and flushed on trigger (default 5). |
+| `CONFIG_BATEAR_TF_PREROLL_SEC` | Wired Detector only. Pre-roll seconds kept in PSRAM and flushed on trigger (default 5). Recording is always compiled in for the Wired Detector role and runtime-disabled if no SD card is present. |
 | `CONFIG_BATEAR_TF_POSTROLL_SEC` | Seconds to keep recording after `DRONE_EVENT_CLEAR` (default 10). |
 | `CONFIG_BATEAR_TF_MAX_MB` | FIFO rotation cap for total recordings size (default 1024 MiB). |
 | `CONFIG_BATEAR_TF_RECORD_ALWAYS` | Always-on debug recording in 60 s rotating segments (default off). |
-| `CONFIG_BATEAR_TF_MANUAL_ENABLE` | Enable BOOT (GPIO 0) long-press manual capture (default on with TF). |
-| `CONFIG_BATEAR_TF_MANUAL_HOLD_MS` | Long-press threshold to start a manual recording (default 1500 ms). |
-| `CONFIG_BATEAR_TF_MANUAL_SEC` | Auto-stop ceiling for manual recordings (default 30 s). |
+| `CONFIG_BATEAR_TF_MANUAL_ENABLE` | Enable BOOT (GPIO 0) push-to-talk manual capture (default on with TF). |
+| `CONFIG_BATEAR_TF_MANUAL_SEC` | Safety-net auto-stop for stuck button (default 30 s). |
 | `CONFIG_BATEAR_TF_NTP_SERVER` | NTP server for filename timestamps (default `pool.ntp.org`, overridden by NVS `wired_cfg`→`ntp_server`). |
 
 ## Project Structure
@@ -103,8 +101,8 @@ batear/
 │   ├── lora_task.cpp/.h        # [detector] LoRa TX (event + heartbeat, jittered)
 │   ├── eth_mqtt_task.cpp/.h    # [wired]    W5500 Ethernet + MQTT + HA Discovery
 │   ├── http_api.cpp/.h         # [wired]    REST API + OTA (GET info/status/recordings, POST ota/config/reboot, DELETE recordings)
-│   ├── tf_recorder.c/.h        # [wired]    microSD WAV capture (ALARM auto + BOOT long-press manual + always-on)
-│   ├── manual_capture.c/.h     # [wired]    BOOT (GPIO 0) long-press / short-press handler
+│   ├── tf_recorder.c/.h        # [wired]    microSD WAV capture (ALARM auto + BOOT push-to-talk manual + always-on)
+│   ├── manual_capture.c/.h     # [wired]    BOOT (GPIO 0) push-to-talk handler
 │   ├── ntp_time.c/.h           # [wired]    SNTP for recording filename timestamps
 │   ├── gateway_task.cpp/.h     # [gateway]  LoRa RX + OLED + LED
 │   ├── mqtt_task.cpp/.h        # [gateway]  WiFi + MQTT + HA Discovery
@@ -147,10 +145,11 @@ batear/
 | ETH CS | 9 | W5500 chip select |
 | ETH INT | 13 | W5500 interrupt |
 | ETH RST | 14 | W5500 reset |
-| SD CLK | 6 | on-board microSD slot, SDMMC 1-bit (TF recorder) |
-| SD CMD | 5 | on-board |
-| SD D0 | 7 | on-board |
-| BOOT button | 0 | strap pin, configured input-only AFTER Ethernet is up so `idf.py flash` is unaffected. Long-press ≥1.5 s starts a manual recording. |
+| SD MOSI | 6 | on-board microSD slot, SDSPI on SPI3_HOST (TF recorder); W5500 owns SPI2_HOST |
+| SD MISO | 5 | on-board |
+| SD SCK  | 7 | on-board |
+| SD CS   | 42 | on-board (SD's D3 in 4-bit nomenclature) |
+| BOOT button | 0 | strap pin, configured input-only AFTER Ethernet is up so `idf.py flash` is unaffected. Push-to-talk: hold to record, release to stop. |
 
 ## Calibration
 
@@ -179,14 +178,14 @@ Alarm/clear events get **one local retry** with a 150–300 ms randomised backof
 
 ## TF Card Recording (Wired Detector)
 
-Optional microSD audio capture on the LILYGO T-ETH-Lite S3. Disabled by default (`CONFIG_BATEAR_TF_RECORD_ENABLE=n`) so flash size is unchanged for users without a card.
+microSD audio capture on the LILYGO T-ETH-Lite S3. Always compiled in for the Wired Detector role. If no card is inserted, the recorder marks itself unmounted at boot and the whole pipeline quietly no-ops — detector, MQTT, HTTP API are all unaffected.
 
 ### Triggers
 
 | Trigger | Filename suffix | Duration |
 |---|---|---|
 | `DRONE_EVENT_ALARM` | `_alarm.wav` | until `DRONE_EVENT_CLEAR` + `BATEAR_TF_POSTROLL_SEC` |
-| BOOT long-press ≥ `BATEAR_TF_MANUAL_HOLD_MS` | `_manual.wav` | until short-press OR `BATEAR_TF_MANUAL_SEC` |
+| BOOT button held (push-to-talk) | `_manual.wav` | release OR `BATEAR_TF_MANUAL_SEC` safety timeout |
 | Always-on (`BATEAR_TF_RECORD_ALWAYS=y`) | `_always.wav` | 60 s rotating segments |
 
 All paths flush a `BATEAR_TF_PREROLL_SEC` PSRAM ring into the file head so audio just before the trigger is captured.
@@ -197,7 +196,13 @@ All paths flush a `BATEAR_TF_PREROLL_SEC` PSRAM ring into the file head so audio
 
 ### Pipeline
 
-`AudioTask` (Core 1) downsamples each 1024-sample 32-bit I2S frame to int16 and pushes it into an `xRingbuffer`. `TfWriterTask` (Core 0, low priority) drains the ring into the PSRAM pre-roll and into the open WAV file, never blocking audio. WAV `data_size` is patched both periodically (every ~10 s) and at close so a power loss leaves a parseable file.
+`AudioTask` (Core 1) downsamples each 1024-sample 32-bit I2S frame to int16 and pushes it into an `xRingbuffer`. `TfWriterTask` (Core 0, low priority) drains the ring into the PSRAM pre-roll and into the open WAV file, never blocking audio. WAV `data_size` is rewritten and `fsync()`'d every ~10 s and at close so a power loss / yanked-card leaves a parseable file at the previous 10 s boundary.
+
+### Hot-plug failure handling
+
+`tf_recorder.c` watches every SDSPI syscall for `EIO`/`ENODEV`/`ENXIO`. The first such error after a successful mount flips `s_mounted` to false and closes any open WAV — every subsequent SD path becomes a silent no-op (no diskio retry storm in the log). Detector / MQTT / HTTP keep running; recordings endpoints return `503`. Recovery requires reboot.
+
+If the ICS-43434 mic itself latches up after the 3.3 V transient of a card yank (rare but possible), `audio_task.c` retries `i2s_channel_disable/enable` once after 30 s of silence, then leaves it alone — the mic recovers on its own in 1–3 minutes.
 
 ### REST endpoints (added to existing API on `CONFIG_BATEAR_HTTP_PORT`)
 

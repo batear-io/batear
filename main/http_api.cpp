@@ -9,7 +9,7 @@
 #include "http_api.h"
 #include "sdkconfig.h"
 
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
 #include "tf_recorder.h"
 #endif
 
@@ -390,11 +390,11 @@ static esp_err_t handle_reboot(httpd_req_t *req)
  * DELETE /api/recordings/<file> — unlink
  * GET /api/recordings/storage — used/free MiB + recording state
  *
- * All gated on CONFIG_BATEAR_TF_RECORD_ENABLE so the symbols never link
+ * All gated on CONFIG_BATEAR_ROLE_WIRED_DETECTOR so the symbols never link
  * in builds without the recorder.
  * ================================================================ */
 
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
 
 /* Pull the trailing path segment from a URI of the form "/api/recordings/<X>".
  * Returns NULL if the URI is exactly "/api/recordings" or "/api/recordings/". */
@@ -564,7 +564,7 @@ static esp_err_t handle_recording_delete(httpd_req_t *req)
     return httpd_resp_sendstr(req, resp);
 }
 
-#endif /* CONFIG_BATEAR_TF_RECORD_ENABLE */
+#endif /* CONFIG_BATEAR_ROLE_WIRED_DETECTOR */
 
 /* ================================================================
  * Server start
@@ -587,7 +587,7 @@ void http_api_start(void)
     /* OTA uploads can be large; increase timeout */
     config.recv_wait_timeout = 30;
     config.send_wait_timeout = 30;
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
     /* /api/recordings/<file> needs wildcard match for the trailing path. */
     config.uri_match_fn = httpd_uri_match_wildcard;
 #endif
@@ -626,7 +626,7 @@ void http_api_start(void)
     httpd_register_uri_handler(server, &uri_config);
     httpd_register_uri_handler(server, &uri_reboot);
 
-#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
     /* The order matters with wildcard matching: register the exact paths
      * first so /api/recordings (no slash) hits the list handler directly
      * and the wildcard catches /api/recordings/<file>. */
