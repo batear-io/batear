@@ -74,6 +74,13 @@ CONFIG_BATEAR_ETH_STATIC_IP=""
 CONFIG_BATEAR_ETH_GATEWAY=""
 CONFIG_BATEAR_ETH_NETMASK="255.255.255.0"
 CONFIG_BATEAR_ETH_DNS=""
+
+# Optional: TF card audio recording (off by default)
+# CONFIG_BATEAR_TF_RECORD_ENABLE=y
+# CONFIG_BATEAR_TF_PREROLL_SEC=5
+# CONFIG_BATEAR_TF_POSTROLL_SEC=10
+# CONFIG_BATEAR_TF_MAX_MB=1024
+# CONFIG_BATEAR_TF_NTP_SERVER="pool.ntp.org"
 ```
 
 !!! note
@@ -106,6 +113,15 @@ CONFIG_BATEAR_ETH_DNS=""
 | `CONFIG_BATEAR_ETH_DNS` | DNS server. If blank, gateway address is used. Overridden by NVS. |
 | `CONFIG_BATEAR_HTTP_PORT` | REST API port (wired detector only, default `8080`). |
 | `CONFIG_BATEAR_HTTP_AUTH_TOKEN` | Bearer token for POST endpoints (empty = no auth). Overridden by NVS. |
+| `CONFIG_BATEAR_TF_RECORD_ENABLE` | Wired Detector only. Enable microSD audio capture (default off). |
+| `CONFIG_BATEAR_TF_PREROLL_SEC` | Pre-roll seconds buffered in PSRAM (default `5`). |
+| `CONFIG_BATEAR_TF_POSTROLL_SEC` | Seconds kept after `DRONE_EVENT_CLEAR` (default `10`). |
+| `CONFIG_BATEAR_TF_MAX_MB` | FIFO rotation cap, MiB (default `1024`). |
+| `CONFIG_BATEAR_TF_RECORD_ALWAYS` | Always-on debug recording, 60 s segments (default off). |
+| `CONFIG_BATEAR_TF_MANUAL_ENABLE` | Enable BOOT-button manual capture (default on with TF). |
+| `CONFIG_BATEAR_TF_MANUAL_HOLD_MS` | Long-press threshold (default `1500` ms). |
+| `CONFIG_BATEAR_TF_MANUAL_SEC` | Manual recording max duration (default `30` s). |
+| `CONFIG_BATEAR_TF_NTP_SERVER` | NTP host for filename timestamps (default `pool.ntp.org`). Overridden by NVS `wired_cfg`→`ntp_server`. |
 
 ## Serial Console
 
@@ -367,6 +383,10 @@ The wired detector runs an HTTP server on port **8080** (configurable via `CONFI
 |:---|:---|:---|:---|
 | `GET` | `/api/info` | No | Device metadata (version, uptime, free heap, partition) |
 | `GET` | `/api/status` | No | Current detection state (drone_detected, confidence, rms_db) |
+| `GET` | `/api/recordings` | No | List captured WAV files (TF recorder only). |
+| `GET` | `/api/recordings/storage` | No | TF storage stats (mounted, used/free MiB, drops). |
+| `GET` | `/api/recordings/<file>` | No | Stream a specific WAV (chunked, `audio/wav`). |
+| `DELETE` | `/api/recordings/<file>` | Bearer | Delete a specific WAV (TF recorder only). |
 | `POST` | `/api/ota` | Bearer | Upload firmware binary for OTA update |
 | `POST` | `/api/config` | Bearer | Update NVS config keys (JSON body) |
 | `POST` | `/api/reboot` | Bearer | Reboot the device |
@@ -453,7 +473,7 @@ Response:
 {"status":"ok","keys_written":2,"note":"reboot to apply"}
 ```
 
-Valid keys: `mqtt_url`, `mqtt_user`, `mqtt_pass`, `device_id`, `eth_ip`, `eth_gw`, `eth_mask`, `eth_dns`, `http_token`.
+Valid keys: `mqtt_url`, `mqtt_user`, `mqtt_pass`, `device_id`, `eth_ip`, `eth_gw`, `eth_mask`, `eth_dns`, `http_token`, `ntp_server`.
 
 !!! warning
     Config changes take effect after reboot. Use `POST /api/reboot` or the serial console `reboot` command.
@@ -469,3 +489,54 @@ curl -X POST -H "Authorization: Bearer MyS3cretToken" http://<ip>:8080/api/reboo
 ```json
 {"status":"ok","message":"rebooting in 1s"}
 ```
+
+## TF Card Audio Recording (Wired Detector)
+
+Optional microSD audio capture on the **LILYGO T-ETH-Lite S3** (which has an on-board TF slot wired to the SDMMC controller in 1-bit mode). Disabled by default — set `CONFIG_BATEAR_TF_RECORD_ENABLE=y` in `sdkconfig.wired_detector` to opt in.
+
+### File format
+
+16-bit signed mono PCM, 16 kHz WAV, written to `/sdcard/rec/<wired_id>/<timestamp>_<seq>_<suffix>.wav`. Verify with `ffprobe`:
+
+```text
+Stream #0:0: Audio: pcm_s16le, 16000 Hz, mono, s16, 256 kb/s
+```
+
+### Triggers
+
+| Source | Filename | Stops when |
+|:---|:---|:---|
+| `DRONE_EVENT_ALARM` (auto) | `…_alarm.wav` | `DRONE_EVENT_CLEAR` + `BATEAR_TF_POSTROLL_SEC` |
+| BOOT button long-press ≥ `BATEAR_TF_MANUAL_HOLD_MS` | `…_manual.wav` | short-press of BOOT, OR `BATEAR_TF_MANUAL_SEC` timeout |
+| Always-on (`BATEAR_TF_RECORD_ALWAYS=y`) | `…_always.wav` | every 60 s a new segment is opened |
+
+All paths flush a `BATEAR_TF_PREROLL_SEC` PSRAM ring into the file head so audio just before the trigger is captured.
+
+### REST endpoints
+
+```bash
+# List all recordings
+curl http://<ip>:8080/api/recordings
+
+# Storage stats
+curl http://<ip>:8080/api/recordings/storage
+
+# Download one
+curl -o sample.wav http://<ip>:8080/api/recordings/20260501-073000_00012_alarm.wav
+
+# Delete one (Bearer required)
+curl -X DELETE -H "Authorization: Bearer MyS3cretToken" \
+  http://<ip>:8080/api/recordings/20260501-073000_00012_alarm.wav
+```
+
+`<file>` whitelist: `[A-Za-z0-9_.-]+`, no leading dot, no `..`. Returns `503` if the SD card isn't mounted, `400` on a bad name, `404` if missing.
+
+### Storage management
+
+When total recordings size exceeds `BATEAR_TF_MAX_MB`, the oldest WAV is deleted before a new one is opened (FIFO). Disk space is also reported on `batear/nodes/<id>/status` as `tf_used_mb`, `tf_free_mb`, `last_recording`, exposed via HA Discovery as diagnostic sensors.
+
+### Caveats
+
+- Boards without an on-board SD slot (`BOARD_HAS_SDMMC=0`) refuse to enable the recorder at compile time.
+- The BOOT button (GPIO 0) is a strap pin — recording configures it as input **after** Ethernet comes up, so `idf.py flash` is unaffected.
+- Until the first NTP sync, filenames use a `bootNNNNNNNNN` fallback derived from uptime.
