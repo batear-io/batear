@@ -18,6 +18,10 @@
 #include "driver/i2s_std.h"
 #include "sdkconfig.h"
 
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
+#include "tf_recorder.h"
+#endif
+
 static const char *TAG = "audio";
 
 #define I2S_MIC_BCLK_GPIO   ((gpio_num_t)PIN_I2S_BCLK)
@@ -43,6 +47,13 @@ static float __attribute__((aligned(16))) s_fft_work[2 * FRAME_SAMPLES];
 static int32_t __attribute__((aligned(16))) s_raw[FRAME_SAMPLES];
 /* Stereo DMA: L,R pairs — ESP32-S3 Philips RX (see i2s_microphone_init). */
 static int32_t __attribute__((aligned(16))) s_stereo[FRAME_SAMPLES * 2];
+
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
+/* Down-sampled buffer handed off to the TF recorder — int16 mono @ 16 kHz.
+ * The 32-bit I2S word from the ICS-43434 carries 24 valid bits in the upper
+ * portion; right-shift by 16 keeps the most significant 16 bits. */
+static int16_t __attribute__((aligned(16))) s_pcm16[FRAME_SAMPLES];
+#endif
 
 static i2s_chan_handle_t s_rx = NULL;
 static float             s_conf_ema = 0.f;
@@ -222,6 +233,13 @@ void AudioTask(void *pvParameters)
             mic_diag_logged = true;
         }
 
+#if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
+        for (int i = 0; i < FRAME_SAMPLES; i++) {
+            s_pcm16[i] = (int16_t)(s_raw[i] >> 16);
+        }
+        tf_recorder_push_pcm(s_pcm16, FRAME_SAMPLES);
+#endif
+
 #if CONFIG_BATEAR_AUDIO_PERF_LOG
         const int64_t t_psd_start = esp_timer_get_time();
 #endif
@@ -241,10 +259,34 @@ void AudioTask(void *pvParameters)
         frames_total++;
         if ((frames_total % 300) == 0) {
             ESP_LOGI(TAG, "mic heartbeat (~30s): win_rms=%.5f (gate %.4f)", rms, RMS_MIN);
+            /* Silence-recovery policy:
+             *   - 1st silent heartbeat (~30 s): restart the I2S channel once
+             *     in case the ESP-side DMA is stuck.
+             *   - Subsequent silent heartbeats: just warn. The ICS-43434 can
+             *     latch up after a 3.3 V transient (e.g. SD card yank); the
+             *     mic recovers on its own in 1–3 minutes when its internal
+             *     brown-out logic releases. ESP-side I2S restarts don't help
+             *     because we can't power-cycle the mic in software. */
+            static int  silent_streak = 0;
+            static bool restart_tried = false;
             if (rms < 1e-6f) {
-                ESP_LOGW(TAG,
-                         "I2S still silent — check ICS-43434 wiring (SCK/WS/SD), 3.3 V, GND, L/R; "
-                         "try menuconfig BATEAR_I2S_MIC_SLOT_RIGHT if L/R is tied to VDD");
+                silent_streak++;
+                if (silent_streak == 1 && !restart_tried) {
+                    ESP_LOGW(TAG, "I2S silent — trying one channel restart");
+                    esp_err_t e1 = i2s_channel_disable(s_rx);
+                    esp_err_t e2 = i2s_channel_enable(s_rx);
+                    ESP_LOGI(TAG, "I2S restart: disable=%s enable=%s",
+                             esp_err_to_name(e1), esp_err_to_name(e2));
+                    mic_diag_logged = false;  /* re-log first frame after restart */
+                    restart_tried   = true;
+                } else {
+                    ESP_LOGW(TAG,
+                             "I2S still silent — likely ICS-43434 latch-up after a power "
+                             "transient (SD yank). Recovers on its own in 1–3 min, or RST the board.");
+                }
+            } else {
+                silent_streak = 0;
+                restart_tried = false;  /* re-arm for the next event */
             }
         }
 
@@ -350,6 +392,20 @@ void AudioTask(void *pvParameters)
                      (double)conf_display, rms);
             last_cal_us = now_us;
         }
+
+#if CONFIG_BATEAR_AUDIO_DEBUG_LOG
+        static int64_t last_dbg_us = 0;
+        if (now_us - last_dbg_us > 1000000LL) {
+            ESP_LOGI(TAG,
+                     "dbg: rms=%.5f gate=%.4f harm_ok=%d conf_ema=%.2f (on=%.2f off=%.2f) "
+                     "f0=%.1f h2=%.2f h3=%.2f snr=%.1f alarm=%d",
+                     rms, RMS_MIN, harm_ok ? 1 : 0, (double)s_conf_ema,
+                     CONF_ON, CONF_OFF,
+                     hr.fundamental_hz, hr.h2_ratio, hr.h3_ratio, hr.snr,
+                     alarm ? 1 : 0);
+            last_dbg_us = now_us;
+        }
+#endif
 
         vTaskDelay(pdMS_TO_TICKS(HOP_MS));
     }

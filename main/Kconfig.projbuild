@@ -56,6 +56,15 @@ config BATEAR_AUDIO_PERF_LOG
         Uses esp_timer_get_time() around compute_psd and analyze_harmonics.
         Disable for production to reduce serial spam.
 
+config BATEAR_AUDIO_DEBUG_LOG
+    bool "Log per-frame detector state (rms / harm / confidence) every ~1 s"
+    default n
+    depends on BATEAR_ROLE_DETECTOR || BATEAR_ROLE_WIRED_DETECTOR
+    help
+        Throttled (~1 Hz) print of rms, harm_ok, confidence EMA, fundamental,
+        harmonic ratios, SNR. Use to diagnose why the state machine isn't
+        entering ALARM with a known sound source.
+
 config BATEAR_I2S_MIC_SLOT_RIGHT
     bool "I2S mic: take RIGHT channel (ICS-43434 L/R pin to VDD)"
     default n
@@ -210,6 +219,73 @@ menu "REST API / OTA"
             require an Authorization header: "Bearer <token>".
             GET endpoints are always unauthenticated.
             Overridden by NVS "wired_cfg" → "http_token".
+
+endmenu
+
+menu "TF card recording (Wired Detector)"
+    depends on BATEAR_ROLE_WIRED_DETECTOR
+
+    # Recording is always compiled in for the Wired Detector role (the only
+    # board that ships with an SD slot). At runtime, an unmounted / missing /
+    # yanked card is detected by tf_recorder.c and the whole pipeline becomes
+    # a no-op without affecting detector / MQTT / HTTP API.
+
+    config BATEAR_TF_PREROLL_SEC
+        int "Pre-roll buffer seconds"
+        default 5
+        range 1 30
+        help
+            Audio retained in PSRAM and flushed to disk on trigger so the
+            file includes the moment immediately *before* the event.
+            5 s × 16 kHz × 16-bit mono = 160 KB.
+
+    config BATEAR_TF_POSTROLL_SEC
+        int "Post-roll seconds after CLEAR"
+        default 10
+        range 0 120
+        help
+            How long to keep recording after DRONE_EVENT_CLEAR.
+
+    config BATEAR_TF_MAX_MB
+        int "Max total recordings size (MiB)"
+        default 1024
+        range 16 32768
+        help
+            FIFO rotation threshold — when total disk usage exceeds this,
+            oldest WAV files are deleted before a new one is opened.
+
+    config BATEAR_TF_RECORD_ALWAYS
+        bool "Always-on debug recording (60 s rotating segments)"
+        default n
+        help
+            Continuously record into 60 s segments regardless of ALARM /
+            manual state. Useful for offline dataset capture.
+
+    config BATEAR_TF_MANUAL_ENABLE
+        bool "Enable BOOT push-to-talk manual capture"
+        default y
+        help
+            Operator-triggered missed-detection capture via the BOOT button
+            (GPIO 0). Push-to-talk: press starts a recording (with pre-roll),
+            release stops it.
+
+    config BATEAR_TF_MANUAL_SEC
+        int "Manual recording max duration (seconds)"
+        default 30
+        range 5 600
+        depends on BATEAR_TF_MANUAL_ENABLE
+        help
+            Auto-stop a manual recording after this many seconds, as a safety
+            net in case the BOOT button gets stuck low.
+
+    config BATEAR_TF_NTP_SERVER
+        string "NTP server for filename timestamps"
+        default "pool.ntp.org"
+        help
+            SNTP server queried after Ethernet comes up, so recording
+            filenames carry wall-clock timestamps (YYYYMMDD-HHMMSS).
+            Until the first sync, filenames use a boot-relative fallback.
+            Overridden by NVS "wired_cfg" → "ntp_server".
 
 endmenu
 

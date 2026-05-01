@@ -59,6 +59,9 @@
 #define BOARD_HAS_VEXT   1
 #define BOARD_HAS_OLED   1
 
+/* No on-board SD card on Heltec V3/V4 */
+#define BOARD_HAS_SDMMC  0
+
 /* LoRa RF traits */
 #define BOARD_LORA_TCXO_V       1.8f
 #define BOARD_LORA_DIO2_AS_RF   true
@@ -103,6 +106,17 @@
 #define PIN_ETH_INT     13
 #define PIN_ETH_RST     14
 #define PIN_ETH_ADDR     1
+
+/* On-board microSD slot — SDSPI on SPI3_HOST.
+ * The T-ETH-Lite S3 wires the slot to a 4-pin SPI footprint (MISO/MOSI/SCK/CS),
+ * NOT to the chip's SDMMC peripheral, so we must drive it via the FATFS SDSPI
+ * driver. W5500 already owns SPI2_HOST (see eth_mqtt_task.cpp), so SD goes on
+ * SPI3_HOST. Pins follow LILYGO's official utilities.h. */
+#define PIN_SD_MISO     5
+#define PIN_SD_MOSI     6
+#define PIN_SD_SCK      7
+#define PIN_SD_CS       42
+#define BOARD_HAS_SDMMC 1
 
 /* No gateway peripherals on this board */
 #define BOARD_HAS_VEXT   0
