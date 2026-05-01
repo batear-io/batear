@@ -432,7 +432,7 @@ static esp_err_t handle_recordings_list(httpd_req_t *req)
     bool first = true;
     char entry[256];
     char full[160];
-    struct dirent *de;
+    const struct dirent *de;
     while ((de = readdir(d)) != NULL) {
         if (de->d_type != DT_REG) continue;
         size_t nlen = strlen(de->d_name);

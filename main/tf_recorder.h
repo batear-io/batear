@@ -85,16 +85,23 @@ bool tf_recorder_is_ready(void);
 
 #else /* !CONFIG_BATEAR_TF_RECORD_ENABLE — feature compiled out */
 
+/* All call sites are inside `#if CONFIG_BATEAR_TF_RECORD_ENABLE`, so when the
+ * feature is off these no-op stubs have no callers — that's the whole point.
+ * Silence cppcheck's --enable=all noise about "unused" functions. */
+
+// cppcheck-suppress unusedFunction
 static inline esp_err_t tf_recorder_init(const char *wired_id)
 {
     (void)wired_id;
     return ESP_OK;
 }
+// cppcheck-suppress unusedFunction
 static inline void tf_recorder_push_pcm(const int16_t *pcm, size_t n)
 {
     (void)pcm;
     (void)n;
 }
+// cppcheck-suppress unusedFunction
 static inline void tf_recorder_send_cmd(TfRecorderCmd cmd) { (void)cmd; }
 static inline void tf_recorder_get_stats(TfRecorderStats *out)
 {

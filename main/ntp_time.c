@@ -38,6 +38,7 @@ static void on_sync(struct timeval *tv)
     s_synced = true;
 }
 
+// cppcheck-suppress unusedFunction
 void ntp_time_start(const char *server)
 {
     if (s_started) {
@@ -65,11 +66,13 @@ void ntp_time_start(const char *server)
     ESP_LOGI(TAG, "SNTP started, server=%s (UTC)", host);
 }
 
+// cppcheck-suppress unusedFunction
 bool ntp_time_is_synced(void)
 {
     return s_synced;
 }
 
+// cppcheck-suppress unusedFunction
 char *ntp_time_format(char *out, size_t out_sz)
 {
     if (out == NULL || out_sz < 16) {

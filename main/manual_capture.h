@@ -27,6 +27,9 @@ void manual_capture_init(void);
 
 #else
 
+/* Stub for builds without the recorder; the only call site is gated on
+ * CONFIG_BATEAR_TF_RECORD_ENABLE && CONFIG_BATEAR_TF_MANUAL_ENABLE. */
+// cppcheck-suppress unusedFunction
 static inline void manual_capture_init(void) { }
 
 #endif
