@@ -24,6 +24,9 @@ endif()
 
 if(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
     list(APPEND SRCS "audio_task.c" "audio_processor.c" "eth_mqtt_task.cpp" "http_api.cpp")
+    if(CONFIG_BATEAR_TF_RECORD_ENABLE)
+        list(APPEND SRCS "tf_recorder.c" "manual_capture.c" "ntp_time.c")
+    endif()
 endif()
 
 set(PRIV_DEPS
@@ -45,6 +48,11 @@ set(PRIV_DEPS
     app_update
     esp_app_format
     esp_http_server
+    # TF recorder deps (Wired Detector). Listed unconditionally because IDF's
+    # initial dependency-graph expansion of idf_component_register doesn't
+    # have CONFIG_X defined yet. The linker GCs unused symbols when the
+    # recorder is disabled / for non-wired roles.
+    fatfs sdmmc esp_driver_sdmmc esp_ringbuf vfs
 )
 
 if(CONFIG_BATEAR_ROLE_DETECTOR OR CONFIG_BATEAR_ROLE_GATEWAY)
