@@ -9,6 +9,10 @@
 #include "http_api.h"
 #include "sdkconfig.h"
 
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#include "tf_recorder.h"
+#endif
+
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -24,6 +28,11 @@
 
 #include <cstring>
 #include <cstdio>
+#include <cstdlib>
+#include <ctime>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 static const char *TAG = "http_api";
 
@@ -297,6 +306,7 @@ static esp_err_t handle_config(httpd_req_t *req)
     static const char *VALID_KEYS[] = {
         "mqtt_url", "mqtt_user", "mqtt_pass", "device_id",
         "eth_ip", "eth_gw", "eth_mask", "eth_dns", "http_token",
+        "ntp_server",
         NULL
     };
 
@@ -375,6 +385,188 @@ static esp_err_t handle_reboot(httpd_req_t *req)
 }
 
 /* ================================================================
+ * GET /api/recordings — list WAV files
+ * GET /api/recordings/<file> — stream one WAV
+ * DELETE /api/recordings/<file> — unlink
+ * GET /api/recordings/storage — used/free MiB + recording state
+ *
+ * All gated on CONFIG_BATEAR_TF_RECORD_ENABLE so the symbols never link
+ * in builds without the recorder.
+ * ================================================================ */
+
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+
+/* Pull the trailing path segment from a URI of the form "/api/recordings/<X>".
+ * Returns NULL if the URI is exactly "/api/recordings" or "/api/recordings/". */
+static const char *uri_tail(const httpd_req_t *req)
+{
+    static const char prefix[] = "/api/recordings";
+    const size_t plen = sizeof(prefix) - 1;
+    if (strncmp(req->uri, prefix, plen) != 0) return NULL;
+    const char *p = req->uri + plen;
+    if (*p == '\0') return NULL;
+    if (*p != '/') return NULL;
+    p++;
+    if (*p == '\0') return NULL;
+    return p;
+}
+
+static esp_err_t handle_recordings_list(httpd_req_t *req)
+{
+    if (!tf_recorder_is_ready()) {
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        httpd_resp_sendstr(req, "{\"error\":\"SD not mounted\"}");
+        return ESP_OK;
+    }
+    const char *dir = tf_recorder_dir();
+    DIR *d = dir ? opendir(dir) : NULL;
+    if (!d) {
+        httpd_resp_set_status(req, "500 Internal Server Error");
+        httpd_resp_sendstr(req, "{\"error\":\"opendir failed\"}");
+        return ESP_OK;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send_chunk(req, "[", 1);
+
+    bool first = true;
+    char entry[256];
+    char full[160];
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_type != DT_REG) continue;
+        size_t nlen = strlen(de->d_name);
+        if (nlen < 5 || strcmp(&de->d_name[nlen - 4], ".wav") != 0) continue;
+        if (snprintf(full, sizeof(full), "%s/%s", dir, de->d_name) >= (int)sizeof(full)) continue;
+        struct stat st;
+        if (stat(full, &st) != 0) continue;
+
+        int n = snprintf(entry, sizeof(entry),
+            "%s{\"name\":\"%s\",\"size\":%llu,\"mtime\":%lld}",
+            first ? "" : ",",
+            de->d_name,
+            (unsigned long long)st.st_size,
+            (long long)st.st_mtime);
+        if (n > 0 && (size_t)n < sizeof(entry)) {
+            httpd_resp_send_chunk(req, entry, n);
+            first = false;
+        }
+    }
+    closedir(d);
+    httpd_resp_send_chunk(req, "]", 1);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t handle_recordings_storage(httpd_req_t *req)
+{
+    TfRecorderStats st;
+    tf_recorder_get_stats(&st);
+    char json[256];
+    snprintf(json, sizeof(json),
+        "{"
+            "\"mounted\":%s,"
+            "\"recording\":%s,"
+            "\"used_mb\":%u,"
+            "\"free_mb\":%u,"
+            "\"total_mb\":%u,"
+            "\"files\":%u,"
+            "\"drops\":%u,"
+            "\"last_recording\":\"%s\""
+        "}",
+        st.mounted ? "true" : "false",
+        st.recording ? "true" : "false",
+        (unsigned)st.used_mb, (unsigned)st.free_mb, (unsigned)st.total_mb,
+        (unsigned)st.files, (unsigned)st.drops, st.last_file);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, json);
+}
+
+static esp_err_t handle_recording_get(httpd_req_t *req)
+{
+    if (!tf_recorder_is_ready()) {
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        httpd_resp_sendstr(req, "{\"error\":\"SD not mounted\"}");
+        return ESP_OK;
+    }
+    const char *name = uri_tail(req);
+    if (!name) return handle_recordings_list(req);
+    if (strcmp(name, "storage") == 0) return handle_recordings_storage(req);
+
+    char path[160];
+    if (!tf_recorder_resolve_path(name, path, sizeof(path))) {
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_sendstr(req, "{\"error\":\"invalid filename\"}");
+        return ESP_OK;
+    }
+
+    FILE *fp = fopen(path, "rb");
+    if (!fp) {
+        httpd_resp_set_status(req, "404 Not Found");
+        httpd_resp_sendstr(req, "{\"error\":\"file not found\"}");
+        return ESP_OK;
+    }
+
+    httpd_resp_set_type(req, "audio/wav");
+    char dispo[128];
+    snprintf(dispo, sizeof(dispo), "attachment; filename=\"%s\"", name);
+    httpd_resp_set_hdr(req, "Content-Disposition", dispo);
+
+    char *buf = static_cast<char *>(malloc(4096));
+    if (!buf) {
+        fclose(fp);
+        httpd_resp_set_status(req, "500 Internal Server Error");
+        httpd_resp_sendstr(req, "{\"error\":\"out of memory\"}");
+        return ESP_OK;
+    }
+    for (;;) {
+        size_t n = fread(buf, 1, 4096, fp);
+        if (n == 0) break;
+        if (httpd_resp_send_chunk(req, buf, n) != ESP_OK) {
+            ESP_LOGW(TAG, "client disconnected mid-stream: %s", name);
+            break;
+        }
+    }
+    free(buf);
+    fclose(fp);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t handle_recording_delete(httpd_req_t *req)
+{
+    if (!check_auth(req)) return ESP_OK;
+    if (!tf_recorder_is_ready()) {
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        httpd_resp_sendstr(req, "{\"error\":\"SD not mounted\"}");
+        return ESP_OK;
+    }
+    const char *name = uri_tail(req);
+    if (!name) {
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_sendstr(req, "{\"error\":\"missing filename\"}");
+        return ESP_OK;
+    }
+    char path[160];
+    if (!tf_recorder_resolve_path(name, path, sizeof(path))) {
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_sendstr(req, "{\"error\":\"invalid filename\"}");
+        return ESP_OK;
+    }
+    if (unlink(path) != 0) {
+        httpd_resp_set_status(req, "404 Not Found");
+        httpd_resp_sendstr(req, "{\"error\":\"unlink failed\"}");
+        return ESP_OK;
+    }
+    httpd_resp_set_type(req, "application/json");
+    char resp[128];
+    snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"deleted\":\"%s\"}", name);
+    return httpd_resp_sendstr(req, resp);
+}
+
+#endif /* CONFIG_BATEAR_TF_RECORD_ENABLE */
+
+/* ================================================================
  * Server start
  * ================================================================ */
 
@@ -391,10 +583,14 @@ void http_api_start(void)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = CONFIG_BATEAR_HTTP_PORT;
     config.lru_purge_enable = true;
-    config.max_uri_handlers = 8;
+    config.max_uri_handlers = 12;
     /* OTA uploads can be large; increase timeout */
     config.recv_wait_timeout = 30;
     config.send_wait_timeout = 30;
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+    /* /api/recordings/<file> needs wildcard match for the trailing path. */
+    config.uri_match_fn = httpd_uri_match_wildcard;
+#endif
 
     httpd_handle_t server = NULL;
     esp_err_t err = httpd_start(&server, &config);
@@ -429,6 +625,27 @@ void http_api_start(void)
     httpd_register_uri_handler(server, &uri_ota);
     httpd_register_uri_handler(server, &uri_config);
     httpd_register_uri_handler(server, &uri_reboot);
+
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+    /* The order matters with wildcard matching: register the exact paths
+     * first so /api/recordings (no slash) hits the list handler directly
+     * and the wildcard catches /api/recordings/<file>. */
+    static const httpd_uri_t uri_rec_list = {
+        .uri = "/api/recordings", .method = HTTP_GET,
+        .handler = handle_recordings_list, .user_ctx = NULL
+    };
+    static const httpd_uri_t uri_rec_get = {
+        .uri = "/api/recordings/*", .method = HTTP_GET,
+        .handler = handle_recording_get, .user_ctx = NULL
+    };
+    static const httpd_uri_t uri_rec_del = {
+        .uri = "/api/recordings/*", .method = HTTP_DELETE,
+        .handler = handle_recording_delete, .user_ctx = NULL
+    };
+    httpd_register_uri_handler(server, &uri_rec_list);
+    httpd_register_uri_handler(server, &uri_rec_get);
+    httpd_register_uri_handler(server, &uri_rec_del);
+#endif
 
     ESP_LOGI(TAG, "HTTP API listening on port %d", CONFIG_BATEAR_HTTP_PORT);
 }

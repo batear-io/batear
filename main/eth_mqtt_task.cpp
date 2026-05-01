@@ -18,6 +18,12 @@
 #include "lorawan_provision.h"
 #include "sdkconfig.h"
 
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#include "tf_recorder.h"
+#include "manual_capture.h"
+#include "ntp_time.h"
+#endif
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
@@ -57,6 +63,10 @@ static char s_eth_ip[IP_STR_MAX];
 static char s_eth_gw[IP_STR_MAX];
 static char s_eth_mask[IP_STR_MAX];
 static char s_eth_dns[IP_STR_MAX];
+
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+static char s_ntp_server[64];
+#endif
 
 /* ---- Ethernet event synchronisation ---- */
 static EventGroupHandle_t s_eth_eg;
@@ -107,6 +117,10 @@ static void load_config(void)
                      CONFIG_BATEAR_ETH_NETMASK);
         load_nvs_str(h, "eth_dns",  s_eth_dns,   sizeof(s_eth_dns),
                      CONFIG_BATEAR_ETH_DNS);
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+        load_nvs_str(h, "ntp_server", s_ntp_server, sizeof(s_ntp_server),
+                     CONFIG_BATEAR_TF_NTP_SERVER);
+#endif
         nvs_close(h);
     } else {
         strncpy(s_mqtt_url,  CONFIG_BATEAR_MQTT_BROKER_URL, sizeof(s_mqtt_url) - 1);
@@ -117,6 +131,9 @@ static void load_config(void)
         strncpy(s_eth_gw,    CONFIG_BATEAR_ETH_GATEWAY,     sizeof(s_eth_gw) - 1);
         strncpy(s_eth_mask,  CONFIG_BATEAR_ETH_NETMASK,     sizeof(s_eth_mask) - 1);
         strncpy(s_eth_dns,   CONFIG_BATEAR_ETH_DNS,         sizeof(s_eth_dns) - 1);
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+        strncpy(s_ntp_server, CONFIG_BATEAR_TF_NTP_SERVER, sizeof(s_ntp_server) - 1);
+#endif
         ESP_LOGW(TAG, "NVS namespace 'wired_cfg' not found — using Kconfig defaults");
     }
 
@@ -356,6 +373,63 @@ static void publish_ha_discovery(void)
         s_device_id);
 
     esp_mqtt_client_publish(s_mqtt, topic, payload, 0, 1, 1);
+
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+    /* TF recorder diagnostic sensors. Three readings share s_topic_status's
+     * tf_used_mb / tf_free_mb / last_recording fields, refreshed each event. */
+    snprintf(topic, sizeof(topic),
+             "homeassistant/sensor/batear_%s/tf_used_mb/config", s_device_id);
+    snprintf(payload, sizeof(payload),
+        "{"
+            "\"name\":\"Batear %s TF Used\","
+            "\"unique_id\":\"batear_%s_tf_used_mb\","
+            "\"unit_of_measurement\":\"MiB\","
+            "\"state_topic\":\"%s\","
+            "\"value_template\":\"{{ value_json.tf_used_mb | default(0) }}\","
+            "\"availability_topic\":\"%s\","
+            "\"payload_available\":\"online\","
+            "\"payload_not_available\":\"offline\","
+            "\"entity_category\":\"diagnostic\","
+            "\"device\":{\"identifiers\":[\"batear_%s\"]}"
+        "}",
+        s_device_id, s_device_id, s_topic_status, s_topic_avail, s_device_id);
+    esp_mqtt_client_publish(s_mqtt, topic, payload, 0, 1, 1);
+
+    snprintf(topic, sizeof(topic),
+             "homeassistant/sensor/batear_%s/tf_free_mb/config", s_device_id);
+    snprintf(payload, sizeof(payload),
+        "{"
+            "\"name\":\"Batear %s TF Free\","
+            "\"unique_id\":\"batear_%s_tf_free_mb\","
+            "\"unit_of_measurement\":\"MiB\","
+            "\"state_topic\":\"%s\","
+            "\"value_template\":\"{{ value_json.tf_free_mb | default(0) }}\","
+            "\"availability_topic\":\"%s\","
+            "\"payload_available\":\"online\","
+            "\"payload_not_available\":\"offline\","
+            "\"entity_category\":\"diagnostic\","
+            "\"device\":{\"identifiers\":[\"batear_%s\"]}"
+        "}",
+        s_device_id, s_device_id, s_topic_status, s_topic_avail, s_device_id);
+    esp_mqtt_client_publish(s_mqtt, topic, payload, 0, 1, 1);
+
+    snprintf(topic, sizeof(topic),
+             "homeassistant/sensor/batear_%s/last_recording/config", s_device_id);
+    snprintf(payload, sizeof(payload),
+        "{"
+            "\"name\":\"Batear %s Last Recording\","
+            "\"unique_id\":\"batear_%s_last_recording\","
+            "\"state_topic\":\"%s\","
+            "\"value_template\":\"{{ value_json.last_recording | default('') }}\","
+            "\"availability_topic\":\"%s\","
+            "\"payload_available\":\"online\","
+            "\"payload_not_available\":\"offline\","
+            "\"entity_category\":\"diagnostic\","
+            "\"device\":{\"identifiers\":[\"batear_%s\"]}"
+        "}",
+        s_device_id, s_device_id, s_topic_status, s_topic_avail, s_device_id);
+    esp_mqtt_client_publish(s_mqtt, topic, payload, 0, 1, 1);
+#endif /* CONFIG_BATEAR_TF_RECORD_ENABLE */
 }
 
 /* ================================================================
@@ -462,12 +536,31 @@ extern "C" void EthMqttTask(void *pvParameters)
     mqtt_start();
     http_api_start();
 
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+    /* NTP first so the recorder's first filename has wall-clock time;
+     * recorder mounts SD + starts writer task; manual_capture configures
+     * GPIO 0 as INPUT (post-bootloader, so flashing still works). */
+    ntp_time_start(s_ntp_server[0] ? s_ntp_server : NULL);
+    tf_recorder_init(s_device_id);
+    manual_capture_init();
+#endif
+
     DroneEvent_t ev;
-    char json[256];
+    char json[384];
     uint16_t tx_seq = 0;
 
     for (;;) {
         if (xQueueReceive(g_drone_event_queue, &ev, pdMS_TO_TICKS(5000)) == pdTRUE) {
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+            /* Forward state transitions to the recorder regardless of
+             * Ethernet/MQTT health — recording must work offline too. */
+            if (ev.type == DRONE_EVENT_ALARM) {
+                tf_recorder_send_cmd(TF_CMD_ALARM_START);
+            } else if (ev.type == DRONE_EVENT_CLEAR) {
+                tf_recorder_send_cmd(TF_CMD_ALARM_CLEAR);
+            }
+#endif
+
             if (!eth_is_connected()) {
                 ESP_LOGW(TAG, "Ethernet down — waiting for reconnect");
                 wait_for_link();
@@ -491,6 +584,34 @@ extern "C" void EthMqttTask(void *pvParameters)
             };
             http_api_update_status(&hst);
 
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+            TfRecorderStats tfs;
+            tf_recorder_get_stats(&tfs);
+            snprintf(json, sizeof(json),
+                "{"
+                    "\"drone_detected\":%s,"
+                    "\"detector_id\":%u,"
+                    "\"rms_db\":%u,"
+                    "\"f0_bin\":%u,"
+                    "\"seq\":%u,"
+                    "\"confidence\":%.4f,"
+                    "\"timestamp\":%lld,"
+                    "\"tf_used_mb\":%u,"
+                    "\"tf_free_mb\":%u,"
+                    "\"tf_recording\":%s,"
+                    "\"last_recording\":\"%s\""
+                "}",
+                (ev.type == DRONE_EVENT_ALARM) ? "true" : "false",
+                (unsigned)det_id,
+                (unsigned)rms_to_db(ev.rms), (unsigned)ev.f0_bin,
+                (unsigned)tx_seq++,
+                (double)ev.peak_ratio,
+                (long long)ts,
+                (unsigned)tfs.used_mb,
+                (unsigned)tfs.free_mb,
+                tfs.recording ? "true" : "false",
+                tfs.last_file);
+#else
             snprintf(json, sizeof(json),
                 "{"
                     "\"drone_detected\":%s,"
@@ -507,6 +628,7 @@ extern "C" void EthMqttTask(void *pvParameters)
                 (unsigned)tx_seq++,
                 (double)ev.peak_ratio,
                 (long long)ts);
+#endif
 
             esp_mqtt_client_publish(s_mqtt, s_topic_status, json, 0, 1, 0);
 

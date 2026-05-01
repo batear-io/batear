@@ -18,6 +18,10 @@
 #include "driver/i2s_std.h"
 #include "sdkconfig.h"
 
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+#include "tf_recorder.h"
+#endif
+
 static const char *TAG = "audio";
 
 #define I2S_MIC_BCLK_GPIO   ((gpio_num_t)PIN_I2S_BCLK)
@@ -43,6 +47,13 @@ static float __attribute__((aligned(16))) s_fft_work[2 * FRAME_SAMPLES];
 static int32_t __attribute__((aligned(16))) s_raw[FRAME_SAMPLES];
 /* Stereo DMA: L,R pairs — ESP32-S3 Philips RX (see i2s_microphone_init). */
 static int32_t __attribute__((aligned(16))) s_stereo[FRAME_SAMPLES * 2];
+
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+/* Down-sampled buffer handed off to the TF recorder — int16 mono @ 16 kHz.
+ * The 32-bit I2S word from the ICS-43434 carries 24 valid bits in the upper
+ * portion; right-shift by 16 keeps the most significant 16 bits. */
+static int16_t __attribute__((aligned(16))) s_pcm16[FRAME_SAMPLES];
+#endif
 
 static i2s_chan_handle_t s_rx = NULL;
 static float             s_conf_ema = 0.f;
@@ -221,6 +232,13 @@ void AudioTask(void *pvParameters)
             log_pcm_int32_span(s_raw, FRAME_SAMPLES, raw_i32_rms_norm(s_raw, FRAME_SAMPLES), "first frame");
             mic_diag_logged = true;
         }
+
+#if CONFIG_BATEAR_TF_RECORD_ENABLE
+        for (int i = 0; i < FRAME_SAMPLES; i++) {
+            s_pcm16[i] = (int16_t)(s_raw[i] >> 16);
+        }
+        tf_recorder_push_pcm(s_pcm16, FRAME_SAMPLES);
+#endif
 
 #if CONFIG_BATEAR_AUDIO_PERF_LOG
         const int64_t t_psd_start = esp_timer_get_time();
