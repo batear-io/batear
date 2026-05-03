@@ -78,7 +78,7 @@ The wired detector connects directly to your network via Ethernet (RJ45). If you
     By default the wired detector uses DHCP. For fixed installations you can assign a static IP via the [serial console](configuration.md#serial-console) (`set eth_ip 192.168.1.50`) or at build time in `sdkconfig.wired_detector`. See [Configuration → Ethernet static IP](configuration.md#wired-detector-config) for details.
 
 !!! tip "OTA firmware updates"
-    The wired detector includes a built-in REST API (port 8080) that supports over-the-air firmware updates with automatic rollback. Upload a new binary with `curl -X POST --data-binary @firmware.bin http://<ip>:8080/api/ota`. See [Configuration → REST API](configuration.md#rest-api-wired-detector-only) for all endpoints.
+    The wired detector includes a built-in REST API (port 8080) that supports over-the-air firmware updates with automatic rollback. Upload a new binary with `curl -X POST --data-binary @firmware.bin http://<ip>:8080/api/ota`. See the [REST API reference](api.md) for all endpoints.
 
 ## Gateway
 
