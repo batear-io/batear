@@ -23,3 +23,10 @@ dependencies:
     version: ">=1.0.0"
     rules:
       - if: "idf_version >=6.0.0"
+
+  ## TFLite Micro for ESP-IDF — used by audio_task to run the drone-detection
+  ## CNN on detector / wired_detector roles. The component pulls in espressif/esp-nn
+  ## (SIMD-optimised int8 kernels) automatically.
+  ## Component registry: https://components.espressif.com/components/espressif/esp-tflite-micro
+  espressif/esp-tflite-micro:
+    version: "*"
