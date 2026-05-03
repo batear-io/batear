@@ -78,5 +78,6 @@ nav:
   - Reference:
       - Hardware: hardware.md
       - Calibration: calibration.md
+      - REST API: api.md
       - Adding a Board: adding-boards.md
   - Contributing: contributing.md
