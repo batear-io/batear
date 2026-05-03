@@ -7,3 +7,8 @@ build_gateway/
 build_detector/
 build_wired_detector/
 site/
+
+# Stage 1 TinyML pipeline tooling
+tools/.venv/
+tools/__pycache__/
+tools/*.pyc

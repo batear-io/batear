@@ -56,6 +56,81 @@ config BATEAR_AUDIO_PERF_LOG
         Uses esp_timer_get_time() around compute_psd and analyze_harmonics.
         Disable for production to reduce serial spam.
 
+menu "TinyML detector (TFLite Micro)"
+    depends on BATEAR_ROLE_DETECTOR || BATEAR_ROLE_WIRED_DETECTOR
+
+    config BATEAR_DETECT_USE_ML
+        bool "Use TFLite Micro CNN instead of FFT harmonic heuristic"
+        default y
+        help
+            When enabled, audio_task pushes mel-spectrogram frames into a
+            TFLite Micro int8 CNN classifier and feeds the resulting drone
+            probability into the existing EMA / sustain hysteresis.
+
+            When disabled, the legacy analyze_harmonics() FFT pipeline is
+            used (kept around for A/B comparison during the migration).
+
+            The tflite model embedded into the firmware is selected at
+            build time via models/drone_*.tflite (see main/CMakeLists.txt
+            EMBED_FILES). The skeleton ships with drone_v0_dummy.tflite —
+            replace once a real model is trained.
+
+    config BATEAR_ML_TENSOR_ARENA_KB
+        int "TFLite Micro tensor arena size (KB)"
+        default 100 if !SPIRAM
+        default 200 if SPIRAM
+        range 16 1024
+        depends on BATEAR_DETECT_USE_ML
+        help
+            Working memory for activations during model.invoke().
+            Heltec V3 has no PSRAM, so the arena must fit in internal SRAM
+            (~230 KB free after FreeRTOS / I2S DMA / FFT buffers).
+            Wired Detector with PSRAM allocates the arena from SPIRAM.
+
+    config BATEAR_ML_CONF_ON_PCT
+        int "ML confidence threshold to enter ALARM (percent of EMA)"
+        default 30
+        range 1 100
+        depends on BATEAR_DETECT_USE_ML
+        help
+            EMA-smoothed drone probability >= this percentage triggers the
+            ALARM state after BATEAR sustain frames. Mirrors the legacy
+            CONF_ON tunable in audio_task.c.
+
+    config BATEAR_ML_CONF_OFF_PCT
+        int "ML confidence threshold to clear ALARM (percent of EMA)"
+        default 18
+        range 1 100
+        depends on BATEAR_DETECT_USE_ML
+        help
+            EMA-smoothed drone probability falls below this percentage
+            triggers the CLEAR state after sustain frames. Mirrors CONF_OFF.
+
+    config BATEAR_TF_BORDERLINE_CAPTURE
+        bool "Active learning: capture borderline ML inferences (Wired Detector)"
+        default n
+        depends on BATEAR_ROLE_WIRED_DETECTOR && BATEAR_DETECT_USE_ML
+        help
+            (Stage 2 hook — Kconfig only for now.) When the ML probability
+            falls inside [BORDERLINE_LO_PCT, BORDERLINE_HI_PCT], the audio
+            task asks tf_recorder to flush the pre-roll into a special
+            *_borderline.wav file. These are the samples the model is
+            least confident about — gold for active-learning fine-tuning.
+
+    config BATEAR_TF_BORDERLINE_LO_PCT
+        int "Borderline lower bound (percent)"
+        default 30
+        range 1 99
+        depends on BATEAR_TF_BORDERLINE_CAPTURE
+
+    config BATEAR_TF_BORDERLINE_HI_PCT
+        int "Borderline upper bound (percent)"
+        default 70
+        range 2 100
+        depends on BATEAR_TF_BORDERLINE_CAPTURE
+
+endmenu
+
 config BATEAR_AUDIO_DEBUG_LOG
     bool "Log per-frame detector state (rms / harm / confidence) every ~1 s"
     default n

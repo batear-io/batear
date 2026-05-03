@@ -1,0 +1,4 @@
+# Stage 1 (skeleton): only need TensorFlow to (re)generate the dummy tflite model.
+# Stage 2 (training pipeline) will add librosa, soundfile, scikit-learn, tensorflow-hub, etc.
+tensorflow>=2.15
+numpy>=1.26

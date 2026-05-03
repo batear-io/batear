@@ -13,3 +13,10 @@ CONFIG_BATEAR_LORA_SYNC_WORD=0x12
 
 # Telemetry heartbeat (jittered ±10% in firmware)
 CONFIG_BATEAR_TELEMETRY_HEARTBEAT_MIN=30
+
+# TinyML detector (TFLite Micro). Heltec V3 has no PSRAM — arena lives in
+# internal SRAM, so keep it tight. Skeleton ships with drone_v0_dummy.tflite.
+CONFIG_BATEAR_DETECT_USE_ML=y
+CONFIG_BATEAR_ML_TENSOR_ARENA_KB=100
+CONFIG_BATEAR_ML_CONF_ON_PCT=30
+CONFIG_BATEAR_ML_CONF_OFF_PCT=18
