@@ -22,6 +22,11 @@
 #include "tf_recorder.h"
 #endif
 
+#if CONFIG_BATEAR_DETECT_USE_ML
+#include "audio_features.h"
+#include "ml_classifier.h"
+#endif
+
 static const char *TAG = "audio";
 
 #define I2S_MIC_BCLK_GPIO   ((gpio_num_t)PIN_I2S_BCLK)
@@ -37,13 +42,27 @@ static const char *TAG = "audio";
 #define HARM_F0_MAX_HZ      2400.f
 
 #define EMA_ALPHA           0.25f
-#define CONF_ON             0.30f
-#define CONF_OFF            0.18f
 #define SUSTAIN_FRAMES_ON   2
 #define SUSTAIN_FRAMES_OFF  8
 #define RMS_MIN             0.0004f
 
+#if CONFIG_BATEAR_DETECT_USE_ML
+/* Hysteresis thresholds come from menuconfig (percent → fraction). Tunable
+ * without rebuild via sdkconfig.* and overrideable per-environment. */
+#define CONF_ON  ((float)CONFIG_BATEAR_ML_CONF_ON_PCT  / 100.0f)
+#define CONF_OFF ((float)CONFIG_BATEAR_ML_CONF_OFF_PCT / 100.0f)
+#else
+/* Legacy harmonic detector defaults — the values audio_task ran with for
+ * months. Kept here so #else builds compile unchanged. */
+#define CONF_ON             0.30f
+#define CONF_OFF            0.18f
+#endif
+
+/* FFT scratch — only the legacy harmonic path uses it directly. The ML path
+ * lets audio_features own its own scratch (see audio_features.c). */
+#if !CONFIG_BATEAR_DETECT_USE_ML
 static float __attribute__((aligned(16))) s_fft_work[2 * FRAME_SAMPLES];
+#endif
 static int32_t __attribute__((aligned(16))) s_raw[FRAME_SAMPLES];
 /* Stereo DMA: L,R pairs — ESP32-S3 Philips RX (see i2s_microphone_init). */
 static int32_t __attribute__((aligned(16))) s_stereo[FRAME_SAMPLES * 2];
@@ -53,6 +72,11 @@ static int32_t __attribute__((aligned(16))) s_stereo[FRAME_SAMPLES * 2];
  * The 32-bit I2S word from the ICS-43434 carries 24 valid bits in the upper
  * portion; right-shift by 16 keeps the most significant 16 bits. */
 static int16_t __attribute__((aligned(16))) s_pcm16[FRAME_SAMPLES];
+#endif
+
+#if CONFIG_BATEAR_DETECT_USE_ML
+/* Pre-allocated mel-spectrogram input buffer for the classifier (32 x 40 = 1280 B). */
+static int8_t __attribute__((aligned(16))) s_mel_int8[AUDIO_FEATURES_MEL_TOTAL];
 #endif
 
 static i2s_chan_handle_t s_rx = NULL;
@@ -205,6 +229,32 @@ void AudioTask(void *pvParameters)
         return;
     }
 
+#if CONFIG_BATEAR_DETECT_USE_ML
+    err = ml_classifier_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "ml_classifier_init failed: %s — suspending", esp_err_to_name(err));
+        audio_processor_deinit();
+        vTaskSuspend(NULL);
+        return;
+    }
+    int8_t mel_zp = 0;
+    float  mel_scale = 1.0f;
+    err = ml_classifier_input_quant(&mel_zp, &mel_scale);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "ml_classifier_input_quant failed: %s", esp_err_to_name(err));
+        vTaskSuspend(NULL);
+        return;
+    }
+    err = audio_features_init(mel_zp, mel_scale);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "audio_features_init failed: %s — suspending", esp_err_to_name(err));
+        vTaskSuspend(NULL);
+        return;
+    }
+    ESP_LOGI(TAG, "ML pipeline ready (arena_used=%u B, conf_on=%.2f conf_off=%.2f)",
+             (unsigned)ml_classifier_arena_used(), (double)CONF_ON, (double)CONF_OFF);
+#endif
+
     err = i2s_microphone_init();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "I2S init failed: %s — suspending", esp_err_to_name(err));
@@ -243,17 +293,27 @@ void AudioTask(void *pvParameters)
 #if CONFIG_BATEAR_AUDIO_PERF_LOG
         const int64_t t_psd_start = esp_timer_get_time();
 #endif
+#if CONFIG_BATEAR_DETECT_USE_ML
+        /* audio_features_push_frame internally runs window+FFT+PSD via its own
+         * scratch, then projects into the mel filterbank and pushes the int8
+         * column into a 32-frame ring. After this call audio_processor_last_rms()
+         * returns the windowed RMS of *this* frame. */
+        err = audio_features_push_frame(s_raw, FRAME_SAMPLES);
+#else
         err = audio_processor_compute_psd(s_fft_work, s_raw, FRAME_SAMPLES);
+#endif
 #if CONFIG_BATEAR_AUDIO_PERF_LOG
         const int32_t dt_psd_us = (int32_t)(esp_timer_get_time() - t_psd_start);
 #endif
         if (err != ESP_OK) {
-            ESP_LOGW(TAG, "compute_psd: %s", esp_err_to_name(err));
+            ESP_LOGW(TAG, "feature compute: %s", esp_err_to_name(err));
             vTaskDelay(pdMS_TO_TICKS(HOP_MS));
             continue;
         }
 
+#if !CONFIG_BATEAR_DETECT_USE_ML
         const float *psd = audio_processor_last_psd();
+#endif
         const float rms  = audio_processor_last_rms();
 
         frames_total++;
@@ -290,50 +350,74 @@ void AudioTask(void *pvParameters)
             }
         }
 
+        /* Detection back-end (ML or legacy harmonic). Both paths produce:
+         *   detect_hit  : bool  — "this frame looks like a drone"
+         *   detect_conf : float in [0, 1] — feed into the EMA */
+#if CONFIG_BATEAR_DETECT_USE_ML
+#if CONFIG_BATEAR_AUDIO_PERF_LOG
+        const int64_t t_inf_start = esp_timer_get_time();
+#endif
+        float   ml_prob   = 0.0f;
+        bool    ml_ran    = false;
+        int64_t invoke_us = 0;
+        if (rms >= RMS_MIN && audio_features_is_warm()) {
+            esp_err_t mel_err = audio_features_get_melgram(s_mel_int8);
+            if (mel_err == ESP_OK) {
+                esp_err_t inf_err = ml_classifier_classify(s_mel_int8, &ml_prob, &invoke_us);
+                ml_ran = (inf_err == ESP_OK);
+                if (inf_err != ESP_OK) {
+                    ESP_LOGW(TAG, "ml classify: %s", esp_err_to_name(inf_err));
+                }
+            }
+        }
+        const bool  detect_hit  = ml_ran && (ml_prob >= CONF_ON);
+        const float detect_conf = ml_prob;
+#if CONFIG_BATEAR_AUDIO_PERF_LOG
+        const int32_t dt_inf_us = (int32_t)(esp_timer_get_time() - t_inf_start);
+#endif
+#else  /* legacy harmonic detector */
         HarmonicAnalysisResult hr;
 #if CONFIG_BATEAR_AUDIO_PERF_LOG
-        const int64_t t_harm_start = esp_timer_get_time();
+        const int64_t t_inf_start = esp_timer_get_time();
 #endif
         const bool harm_ok =
             analyze_harmonics(psd, AUDIO_PROC_PSD_BINS, HARM_F0_MIN_HZ, HARM_F0_MAX_HZ, &hr);
+        const bool  detect_hit  = harm_ok;
+        const float detect_conf = harm_ok ? hr.confidence : fminf(hr.confidence, 0.15f);
 #if CONFIG_BATEAR_AUDIO_PERF_LOG
-        const int32_t dt_harm_us = (int32_t)(esp_timer_get_time() - t_harm_start);
-        static int      s_perf_n;
-        static int32_t  s_psd_sum, s_harm_sum, s_psd_min = INT32_MAX, s_psd_max, s_harm_min = INT32_MAX,
-            s_harm_max;
+        const int32_t dt_inf_us = (int32_t)(esp_timer_get_time() - t_inf_start);
+#endif
+#endif  /* CONFIG_BATEAR_DETECT_USE_ML */
+
+#if CONFIG_BATEAR_AUDIO_PERF_LOG
+        static int     s_perf_n;
+        static int32_t s_psd_sum, s_inf_sum;
+        static int32_t s_psd_min = INT32_MAX, s_psd_max;
+        static int32_t s_inf_min = INT32_MAX, s_inf_max;
         s_psd_sum += dt_psd_us;
-        s_harm_sum += dt_harm_us;
-        if (dt_psd_us < s_psd_min) {
-            s_psd_min = dt_psd_us;
-        }
-        if (dt_psd_us > s_psd_max) {
-            s_psd_max = dt_psd_us;
-        }
-        if (dt_harm_us < s_harm_min) {
-            s_harm_min = dt_harm_us;
-        }
-        if (dt_harm_us > s_harm_max) {
-            s_harm_max = dt_harm_us;
-        }
+        s_inf_sum += dt_inf_us;
+        if (dt_psd_us < s_psd_min) { s_psd_min = dt_psd_us; }
+        if (dt_psd_us > s_psd_max) { s_psd_max = dt_psd_us; }
+        if (dt_inf_us < s_inf_min) { s_inf_min = dt_inf_us; }
+        if (dt_inf_us > s_inf_max) { s_inf_max = dt_inf_us; }
         s_perf_n++;
         if (s_perf_n >= 100) {
             ESP_LOGI(TAG,
-                     "perf (100 frames): psd_fft min/avg/max=%" PRId32 "/%" PRId32 "/%" PRId32 " us  "
-                     "harm min/avg/max=%" PRId32 "/%" PRId32 "/%" PRId32 " us  dsp_tot_avg=%" PRId32 " us",
-                     s_psd_min, s_psd_sum / s_perf_n, s_psd_max, s_harm_min, s_harm_sum / s_perf_n, s_harm_max,
-                     (s_psd_sum + s_harm_sum) / s_perf_n);
-            s_perf_n     = 0;
-            s_psd_sum    = 0;
-            s_harm_sum   = 0;
-            s_psd_min    = INT32_MAX;
-            s_psd_max    = 0;
-            s_harm_min   = INT32_MAX;
-            s_harm_max   = 0;
+                     "perf (100 frames): feat min/avg/max=%" PRId32 "/%" PRId32 "/%" PRId32 " us  "
+                     "infer min/avg/max=%" PRId32 "/%" PRId32 "/%" PRId32 " us  total_avg=%" PRId32 " us",
+                     s_psd_min, s_psd_sum / s_perf_n, s_psd_max,
+                     s_inf_min, s_inf_sum / s_perf_n, s_inf_max,
+                     (s_psd_sum + s_inf_sum) / s_perf_n);
+            s_perf_n  = 0;
+            s_psd_sum = 0; s_inf_sum = 0;
+            s_psd_min = INT32_MAX; s_psd_max = 0;
+            s_inf_min = INT32_MAX; s_inf_max = 0;
         }
 #endif
 
-        float conf_display  = s_conf_ema;
+        const float conf_display = s_conf_ema;
 
+        /* Generic state machine: same EMA + sustain hysteresis for both back-ends. */
         if (rms < RMS_MIN) {
             s_conf_ema *= (1.f - EMA_ALPHA);
             if (alarm) {
@@ -345,37 +429,41 @@ void AudioTask(void *pvParameters)
                 }
             }
         } else {
-            if (harm_ok) {
-                s_conf_ema = EMA_ALPHA * hr.confidence + (1.f - EMA_ALPHA) * s_conf_ema;
-            } else {
-                s_conf_ema = EMA_ALPHA * fminf(hr.confidence, 0.15f) + (1.f - EMA_ALPHA) * s_conf_ema;
-            }
-
-            const int active_metric = harm_ok ? 1 : 0;
+            s_conf_ema = EMA_ALPHA * detect_conf + (1.f - EMA_ALPHA) * s_conf_ema;
+            const int active_metric = detect_hit ? 1 : 0;
 
             if (!alarm) {
-                if (harm_ok && s_conf_ema >= CONF_ON) {
+                if (detect_hit && s_conf_ema >= CONF_ON) {
                     sustain_on++;
                     sustain_off = 0;
                     if (sustain_on >= SUSTAIN_FRAMES_ON) {
                         alarm = true;
                         detection_count++;
+#if CONFIG_BATEAR_DETECT_USE_ML
+                        ESP_LOGW(TAG, "ALARM #%d: ml_p=%.2f conf=%.2f rms=%.5f",
+                                 detection_count, (double)detect_conf,
+                                 (double)s_conf_ema, rms);
+                        push_event(DRONE_EVENT_ALARM, detect_conf,
+                                   (int)(detect_conf * 255.0f), rms);
+#else
                         ESP_LOGW(TAG, "ALARM #%d: f0=%.1f Hz conf=%.2f rms=%.5f",
-                                 detection_count, hr.fundamental_hz, (double)s_conf_ema, rms);
-                        push_event(DRONE_EVENT_ALARM, hr.confidence,
+                                 detection_count, hr.fundamental_hz,
+                                 (double)s_conf_ema, rms);
+                        push_event(DRONE_EVENT_ALARM, detect_conf,
                                    hr.fundamental_bin > 255 ? 255 : hr.fundamental_bin, rms);
+#endif
                     }
                 } else {
                     sustain_on = 0;
                 }
             } else {
-                if (!harm_ok || s_conf_ema < CONF_OFF) {
+                if (!detect_hit || s_conf_ema < CONF_OFF) {
                     sustain_off++;
                     sustain_on = 0;
                     if (sustain_off >= SUSTAIN_FRAMES_OFF) {
                         alarm = false;
-                        ESP_LOGI(TAG, "CLEAR (harm_ok=%d conf=%.2f)", harm_ok, (double)s_conf_ema);
-                        push_event(DRONE_EVENT_CLEAR, hr.confidence, active_metric, rms);
+                        ESP_LOGI(TAG, "CLEAR (hit=%d conf=%.2f)", detect_hit, (double)s_conf_ema);
+                        push_event(DRONE_EVENT_CLEAR, detect_conf, active_metric, rms);
                     }
                 } else {
                     sustain_off = 0;
@@ -386,23 +474,37 @@ void AudioTask(void *pvParameters)
         static int64_t last_cal_us = 0;
         const int64_t now_us       = esp_timer_get_time();
         if (alarm && now_us - last_cal_us > 1000000LL) {
+#if CONFIG_BATEAR_DETECT_USE_ML
+            ESP_LOGI(TAG, "cal: ml_p=%.2f conf_ema=%.2f rms=%.5f invoke=%lld us",
+                     (double)detect_conf, (double)conf_display, rms, (long long)invoke_us);
+#else
             ESP_LOGI(TAG,
                      "cal: f0=%.1f Hz h2=%.2f h3=%.2f snr=%.1f nf=%.2e conf_ema=%.2f rms=%.5f",
                      hr.fundamental_hz, hr.h2_ratio, hr.h3_ratio, hr.snr, hr.noise_floor,
                      (double)conf_display, rms);
+#endif
             last_cal_us = now_us;
         }
 
 #if CONFIG_BATEAR_AUDIO_DEBUG_LOG
         static int64_t last_dbg_us = 0;
         if (now_us - last_dbg_us > 1000000LL) {
+#if CONFIG_BATEAR_DETECT_USE_ML
+            ESP_LOGI(TAG,
+                     "dbg: rms=%.5f gate=%.4f hit=%d ml_p=%.2f conf_ema=%.2f "
+                     "(on=%.2f off=%.2f) warm=%d alarm=%d",
+                     rms, RMS_MIN, detect_hit ? 1 : 0, (double)detect_conf,
+                     (double)s_conf_ema, (double)CONF_ON, (double)CONF_OFF,
+                     audio_features_is_warm() ? 1 : 0, alarm ? 1 : 0);
+#else
             ESP_LOGI(TAG,
                      "dbg: rms=%.5f gate=%.4f harm_ok=%d conf_ema=%.2f (on=%.2f off=%.2f) "
                      "f0=%.1f h2=%.2f h3=%.2f snr=%.1f alarm=%d",
                      rms, RMS_MIN, harm_ok ? 1 : 0, (double)s_conf_ema,
-                     CONF_ON, CONF_OFF,
+                     (double)CONF_ON, (double)CONF_OFF,
                      hr.fundamental_hz, hr.h2_ratio, hr.h3_ratio, hr.snr,
                      alarm ? 1 : 0);
+#endif
             last_dbg_us = now_us;
         }
 #endif
