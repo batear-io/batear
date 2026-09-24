@@ -28,6 +28,7 @@
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
 #include "esp_log.h"
+#include "esp_idf_version.h"
 #include "esp_eth.h"
 #include "esp_eth_mac_w5500.h"
 #include "esp_eth_phy_w5500.h"
@@ -225,7 +226,13 @@ static bool eth_init(void)
     /* W5500 MAC */
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
     eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(SPI2_HOST, &devcfg);
+    /* espressif/w5500 2.0.0 (IDF 6.x) moved the SPI/IRQ fields into a shared
+     * .base of type eth_wiznet_config_t; the IDF 5.x built-in driver is flat. */
+#if ESP_IDF_VERSION_MAJOR >= 6
+    w5500_config.base.int_gpio_num = PIN_ETH_INT;
+#else
     w5500_config.int_gpio_num = PIN_ETH_INT;
+#endif
     esp_eth_mac_t *mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
 
     /* W5500 PHY */
