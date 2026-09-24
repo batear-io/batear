@@ -1,0 +1,15 @@
+{
+  "name": "Batear Detector (Heltec V4)",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        {
+          "path": "firmware/firmware-latest/merged_detector_v4.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

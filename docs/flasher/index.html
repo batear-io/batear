@@ -191,6 +191,15 @@
         </select>
         <span id="versionLoading" class="loading">loading...</span>
       </div>
+      
+      <!-- Board Version Picker (V3/V4) -->
+      <div class="version-picker">
+        <label for="boardSelect">Board Version:</label>
+        <select id="boardSelect">
+          <option value="v3">Heltec V3 (8MB)</option>
+          <option value="v4">Heltec V4 (16MB)</option>
+        </select>
+      </div>
     </section>
 
     <!-- Role Tabs -->
@@ -217,7 +226,7 @@
           <span>I2S Mic + DSP</span>
           <span>LoRa TX (SX1262)</span>
           <span>AES-128-GCM</span>
-          <span>Heltec WiFi LoRa 32 V3</span>
+          <span>Heltec WiFi LoRa 32 V3 / V4</span>
         </div>
       </div>
       <div class="role-info-panel" data-role="gateway">
@@ -226,7 +235,7 @@
           <span>LoRa RX (SX1262)</span>
           <span>SSD1306 OLED</span>
           <span>MQTT + HA Discovery</span>
-          <span>Heltec WiFi LoRa 32 V3</span>
+          <span>Heltec WiFi LoRa 32 V3 / V4</span>
         </div>
       </div>
       <div class="role-info-panel" data-role="wired_detector">
@@ -558,6 +567,7 @@
 
     /* ---- DOM refs ---- */
     const select       = document.getElementById("versionSelect");
+    const boardSelect    = document.getElementById("boardSelect");
     const loading      = document.getElementById("versionLoading");
     const btnInstall   = document.getElementById("btnInstall");
     const installLabel = document.getElementById("installLabel");
@@ -602,6 +612,11 @@
       cfgPanels.forEach(p => p.classList.toggle("active", p.dataset.role === role));
       // Wired Detector does not transmit over LoRa — hide the AES key field.
       networkKeyPanel.style.display = (role === "wired_detector") ? "none" : "";
+          // Hide board version selector for wired_detector (only uses one firmware)
+    const boardVersionPicker = boardSelect.closest('.version-picker');
+    if (boardVersionPicker) {
+      boardVersionPicker.style.display = (role === "wired_detector") ? "none" : "";
+    }
       installLabel.textContent = `Install ${ROLE_LABELS[role]}`;
       validateAndUpdate();
     }
@@ -630,7 +645,10 @@
     }
 
     function fwUrl(tag, role) {
-      return `${pageBase}firmware/${tag}/merged_${role}.bin`;
+      // Wired Detector ships a single firmware; LoRa roles carry a board-version suffix.
+      const boardVer = boardSelect?.value || 'v3';
+      const roleSuffix = (role === 'wired_detector') ? '' : `_${boardVer}`;
+      return `${pageBase}firmware/${tag}/merged_${role}${roleSuffix}.bin`;
     }
 
     function getValidKey() {
@@ -838,6 +856,7 @@
     });
 
     select.addEventListener("change", () => updateManifests());
+    boardSelect.addEventListener("change", () => updateManifests());
 
     /* ---- Initial setup ---- */
     updateManifests();

@@ -1,0 +1,49 @@
+name: PR Size Comment
+
+# The ESP-IDF Build CI's size-report job runs in the (possibly fork) PR context,
+# where GitHub forces GITHUB_TOKEN to read-only and commenting is impossible.
+# This workflow is triggered by that run's completion; because workflow_run runs
+# in the base-repo context it gets a write token and can comment on fork PRs.
+# NOTE: workflow_run only ever uses the copy of this file on the default branch,
+# so it takes effect for fork PRs only after it is merged to main.
+
+on:
+  workflow_run:
+    workflows: ["ESP-IDF Build CI"]
+    types: [completed]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  comment:
+    name: Comment firmware sizes
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Download size report
+        uses: actions/download-artifact@v4
+        with:
+          name: size-report
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Read PR number and report
+        id: report
+        run: |
+          set -euo pipefail
+          echo "number=$(cat pr_number.txt)" >> "$GITHUB_OUTPUT"
+          {
+            echo "body<<ENDOFBODY"
+            cat size_report.md
+            echo "ENDOFBODY"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment PR with firmware sizes
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          pr-number: ${{ steps.report.outputs.number }}
+          comment-tag: firmware-size
+          message: ${{ steps.report.outputs.body }}

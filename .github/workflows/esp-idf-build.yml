@@ -20,13 +20,21 @@ jobs:
     strategy:
       matrix:
         include:
-          - role: detector
+          - role: detector_v3
+            sdkconfig_extra: sdkconfig.detector_v3
             flash_size: 8MB
-          - role: gateway
-            flash_size: 8MB
-          - role: wired_detector
+          - role: detector_v4
+            sdkconfig_extra: sdkconfig.detector_v4
             flash_size: 16MB
-
+          - role: gateway_v3
+            sdkconfig_extra: sdkconfig.gateway_v3
+            flash_size: 8MB
+          - role: gateway_v4
+            sdkconfig_extra: sdkconfig.gateway_v4
+            flash_size: 16MB
+          - role: wired_detector
+            sdkconfig_extra: sdkconfig.wired_detector
+            flash_size: 16MB
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -38,7 +46,7 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           rm -rf build sdkconfig
-          env SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.${{ matrix.role }}" idf.py set-target esp32s3
+          env SDKCONFIG_DEFAULTS="sdkconfig.defaults;${{ matrix.sdkconfig_extra }}" idf.py set-target esp32s3
           idf.py build
 
       - name: Capture size
@@ -51,7 +59,7 @@ jobs:
           . $IDF_PATH/export.sh
           esptool.py --chip esp32s3 merge_bin -o merged_${{ matrix.role }}.bin \
             --flash_mode dio --flash_size ${{ matrix.flash_size }} \
-            0x0    build/bootloader/bootloader.bin \
+            0x0 build/bootloader/bootloader.bin \
             0x8000 build/partition_table/partition-table.bin \
             0x10000 build/batear.bin
 
@@ -68,7 +76,6 @@ jobs:
     needs: build
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -81,81 +88,57 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          CUR_DET=$(stat -c %s merged_detector.bin)
-          CUR_GW=$(stat -c %s merged_gateway.bin)
-          CUR_WD=$(stat -c %s merged_wired_detector.bin)
+          set -euo pipefail
+          ROLES="detector_v3 detector_v4 gateway_v3 gateway_v4 wired_detector"
           REPO="${{ github.repository }}"
           R=/tmp/size_report.md
           sign() { local v=$1; [ "$v" -gt 0 ] && echo "+${v}" || echo "${v}"; }
 
           echo "## Firmware Size Report" > "$R"
           echo "" >> "$R"
-
-          if curl -sfL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-               "https://github.com/${REPO}/releases/download/firmware-latest/merged_detector.bin" \
-               -o /tmp/prev_detector.bin && \
-             curl -sfL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-               "https://github.com/${REPO}/releases/download/firmware-latest/merged_gateway.bin" \
-               -o /tmp/prev_gateway.bin; then
-            PREV_DET=$(stat -c %s /tmp/prev_detector.bin)
-            PREV_GW=$(stat -c %s /tmp/prev_gateway.bin)
-            DET_DELTA=$(sign $((CUR_DET - PREV_DET)))
-            GW_DELTA=$(sign $((CUR_GW - PREV_GW)))
-
-            # Wired detector may not exist in previous release
+          echo "| Role | Current | Previous | Delta |" >> "$R"
+          echo "|------|--------:|---------:|------:|" >> "$R"
+          for role in $ROLES; do
+            # A missing artifact means the build job dropped a binary — fail loudly.
+            CUR=$(stat -c %s "merged_${role}.bin")
             if curl -sfL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                 "https://github.com/${REPO}/releases/download/firmware-latest/merged_wired_detector.bin" \
-                 -o /tmp/prev_wired_detector.bin; then
-              PREV_WD=$(stat -c %s /tmp/prev_wired_detector.bin)
-              WD_DELTA=$(sign $((CUR_WD - PREV_WD)))
+                 "https://github.com/${REPO}/releases/download/firmware-latest/merged_${role}.bin" \
+                 -o "/tmp/prev_${role}.bin"; then
+              PREV=$(stat -c %s "/tmp/prev_${role}.bin")
+              echo "| ${role} | ${CUR} B | ${PREV} B | $(sign $((CUR - PREV))) B |" >> "$R"
             else
-              PREV_WD="—"
-              WD_DELTA="new"
+              echo "| ${role} | ${CUR} B | — | new |" >> "$R"
             fi
-
-            echo "| Role | Current | Previous | Delta |" >> "$R"
-            echo "|------|--------:|--------:|------:|" >> "$R"
-            echo "| Detector | $CUR_DET B | $PREV_DET B | $DET_DELTA B |" >> "$R"
-            echo "| Gateway | $CUR_GW B | $PREV_GW B | $GW_DELTA B |" >> "$R"
-            echo "| Wired Detector | $CUR_WD B | $PREV_WD B | $WD_DELTA B |" >> "$R"
-            echo "" >> "$R"
-            echo "> Compared against [\`firmware-latest\`](https://github.com/${REPO}/releases/tag/firmware-latest)." >> "$R"
-          else
-            echo "| Role | Size |" >> "$R"
-            echo "|------|-----:|" >> "$R"
-            echo "| Detector | $CUR_DET B |" >> "$R"
-            echo "| Gateway | $CUR_GW B |" >> "$R"
-            echo "| Wired Detector | $CUR_WD B |" >> "$R"
-            echo "" >> "$R"
-            echo "> No previous release found for comparison." >> "$R"
-          fi
-
+          done
+          echo "" >> "$R"
+          echo "> Compared against [\`firmware-latest\`](https://github.com/${REPO}/releases/tag/firmware-latest)." >> "$R"
           echo "" >> "$R"
           echo "<details><summary>idf.py size details</summary>" >> "$R"
           echo "" >> "$R"
-          echo "**Detector:** \`$(cat size_detector.txt)\`" >> "$R"
-          echo "**Gateway:** \`$(cat size_gateway.txt)\`" >> "$R"
-          echo "**Wired Detector:** \`$(cat size_wired_detector.txt)\`" >> "$R"
+          for role in $ROLES; do
+            echo "**${role}:** \`$(cat size_${role}.txt)\`" >> "$R"
+          done
           echo "" >> "$R"
           echo "</details>" >> "$R"
+          # Hand the report and PR number off to the pr-size-comment workflow,
+          # which runs in the base-repo context and can comment on fork PRs
+          # (the fork-PR GITHUB_TOKEN here is read-only and cannot post).
+          cp "$R" size_report.md
+          echo "${{ github.event.pull_request.number }}" > pr_number.txt
 
-          {
-            echo "body<<ENDOFBODY"
-            cat "$R"
-            echo "ENDOFBODY"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Comment PR with firmware sizes
-        uses: thollander/actions-comment-pull-request@v3
+      - name: Upload size report
+        uses: actions/upload-artifact@v4
         with:
-          message: ${{ steps.size_report.outputs.body }}
+          name: size-report
+          path: |
+            size_report.md
+            pr_number.txt
 
   release:
     name: Publish Firmware
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-
     steps:
       - name: Checkout code
         if: startsWith(github.ref, 'refs/tags/')
@@ -190,6 +173,8 @@ jobs:
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
           make_latest: ${{ startsWith(github.ref, 'refs/tags/') }}
           files: |
-            merged_detector.bin
-            merged_gateway.bin
+            merged_detector_v3.bin
+            merged_detector_v4.bin
+            merged_gateway_v3.bin
+            merged_gateway_v4.bin
             merged_wired_detector.bin
