@@ -10,7 +10,7 @@ dependencies:
   ## RadioLib — SX1262 / LoRa driver (https://github.com/jgromes/RadioLib)
   ## Component registry: https://components.espressif.com/components/jgromes/radiolib
   jgromes/radiolib:
-    version: ">=6.6.0"
+    version: ">=6.6.0,<8.0.0"  # 8.x changed begin()/setTCXO()/HAL API
 
   ## ESP-MQTT: built-in on ESP-IDF <=5.x, removed from core in v6.0.
   espressif/mqtt:
