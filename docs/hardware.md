@@ -7,6 +7,13 @@
 | Heltec WiFi LoRa 32 V3 / V4 | ESP32-S3 + SX1262 on-board |
 | ICS-43434 **or** INMP441 I2S MEMS microphone | 3.3 V, L/R → GND (left channel) |
 
+### Enclosure (3D-printable)
+
+A community-designed 3D-printable case for the **Heltec WiFi LoRa 32 V3** detector is available — thanks to [Nelson Hsu (@nelson8588x2)](https://github.com/nelson8588x2):
+
+- **MakerWorld** (print profiles): [Batear Case](https://makerworld.com/en/models/3581398-batear-case)
+- **GitHub** (STEP source files): [nelson8588x2/batear-case](https://github.com/nelson8588x2/batear-case)
+
 ### Wiring (ICS-43434 / INMP441 → Heltec V3 / V4)
 
 | Mic pin | GPIO | Function |
