@@ -4,7 +4,7 @@
  * Credentials are read from NVS namespace "gateway_cfg" first; if a key
  * is absent the compile-time Kconfig default is used instead.
  *
- * Runs on Core 1.  GatewayTask (Core 0) sends MqttEvent_t items via
+ * Runs on Core 1.  node_rx (LoRaTask, Core 0) sends MqttEvent_t items via
  * g_mqtt_event_queue; this task publishes them as JSON to:
  *   batear/nodes/<device_id>/status
  *

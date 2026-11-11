@@ -77,7 +77,7 @@ idf.py -B build_detector \
 
 ## Step 5: If the LoRa chip is different
 
-If the board uses SX1276/SX1278 instead of SX1262, you'll need to update `lora_task.cpp` and `gateway_task.cpp` to instantiate the correct RadioLib class. Use `#ifdef` on your board macro for conditional compilation.
+If the board uses SX1276/SX1278 instead of SX1262, you'll need to update `lora_radio.cpp` to instantiate the correct RadioLib class. Use `#ifdef` on your board macro for conditional compilation.
 
 !!! tip "Ethernet boards"
     For boards with Ethernet (e.g. LILYGO T-ETH-Lite S3), define `PIN_ETH_*` pins and `BOARD_HAS_ETH 1` instead of `PIN_LORA_*` pins. See the T-ETH-Lite S3 block in `pin_config.h` for a working example. These boards use the `WIRED_DETECTOR` role and a separate `sdkconfig.wired_detector`.

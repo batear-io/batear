@@ -1,0 +1,8 @@
+# LoRa node partition table (Heltec V3 8 MB / V4 16 MB).
+# Same NVS and app offsets as the IDF default single-app table, so existing
+# NVS provisioning survives and the flasher's offsets don't change; the app
+# partition grows from 1 MiB to 3 MiB to fit the combined node image.
+# Name,   Type, SubType, Offset,  Size
+nvs,      data, nvs,     0x9000,  0x6000
+phy_init, data, phy,     0xf000,  0x1000
+factory,  app,  factory, 0x10000, 0x300000

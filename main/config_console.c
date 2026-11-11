@@ -138,13 +138,13 @@ static int cmd_show(int argc, char **argv)
         nvs_handle_t h;
         bool opened = (nvs_open("lora_cfg", NVS_READONLY, &h) == ESP_OK);
         if (opened) {
-#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
+#if defined(CONFIG_BATEAR_LORA_NODE)
             print_nvs_blob_hex(h, "app_key", "net_key", 16);
 #endif
-#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
+#if defined(CONFIG_BATEAR_LORA_NODE) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
             print_nvs_u8(h, "device_id", "device_id");
 #endif
-#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
+#if defined(CONFIG_BATEAR_LORA_NODE)
             print_nvs_u32(h, "lora_freq", "lora_freq", "kHz");
             print_nvs_u8_hex(h, "sync_word", "sync_word");
 #endif
@@ -160,7 +160,7 @@ static int cmd_show(int argc, char **argv)
     // cppcheck-suppress invalidPrintfArgType_s
     printf("    net_key    = %s\n", CONFIG_BATEAR_NET_KEY);
 #endif
-#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
+#if defined(CONFIG_BATEAR_LORA_NODE) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
     printf("    device_id  = %d\n", CONFIG_BATEAR_DEVICE_ID);
 #endif
 #ifdef CONFIG_BATEAR_LORA_FREQ
@@ -170,7 +170,7 @@ static int cmd_show(int argc, char **argv)
     printf("    sync_word  = 0x%02X\n", CONFIG_BATEAR_LORA_SYNC_WORD);
 #endif
 
-#ifdef CONFIG_BATEAR_ROLE_GATEWAY
+#ifdef CONFIG_BATEAR_LORA_NODE
     printf("\n[gateway_cfg]  (WiFi / MQTT)\n");
     {
         nvs_handle_t h;
@@ -191,6 +191,24 @@ static int cmd_show(int argc, char **argv)
     printf("    wifi_ssid  = %s\n", CONFIG_BATEAR_WIFI_SSID);
     printf("    mqtt_url   = %s\n", CONFIG_BATEAR_MQTT_BROKER_URL);
     printf("    device_id  = %s\n", CONFIG_BATEAR_GW_DEVICE_ID);
+
+    printf("\n[node_cfg]  (capabilities: 0=off 1=on 2=auto)\n");
+    {
+        nvs_handle_t h;
+        bool opened = (nvs_open("node_cfg", NVS_READONLY, &h) == ESP_OK);
+        if (opened) {
+            print_nvs_u8(h, "cap_mic", "cap_mic");
+            print_nvs_u8(h, "cap_rx", "cap_rx");
+            print_nvs_u8(h, "cap_bridge", "cap_bridge");
+            nvs_close(h);
+        } else {
+            printf("  (namespace not found — using Kconfig defaults)\n");
+        }
+    }
+    printf("  Kconfig defaults:\n");
+    printf("    cap_mic    = %d\n", CONFIG_BATEAR_CAP_MIC_DEFAULT);
+    printf("    cap_rx     = %d\n", CONFIG_BATEAR_CAP_RX_DEFAULT);
+    printf("    cap_bridge = %d\n", CONFIG_BATEAR_CAP_BRIDGE_DEFAULT);
 #endif
 
 #ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR
@@ -334,21 +352,22 @@ static int cmd_set(int argc, char **argv)
     if (argc < 3) {
         printf("Usage: set <key> <value>\n");
         printf("Keys:\n");
-#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
+#if defined(CONFIG_BATEAR_LORA_NODE)
         printf("  net_key     — 32 hex chars (AES-128 LoRa key)\n");
         printf("  lora_freq   — frequency in kHz (e.g. 915000, 868000)\n");
         printf("  sync_word   — hex byte (e.g. 12, 34)\n");
 #endif
-#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
+#if defined(CONFIG_BATEAR_LORA_NODE) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
         printf("  device_id   — 0-255\n");
 #endif
-#ifdef CONFIG_BATEAR_ROLE_GATEWAY
+#ifdef CONFIG_BATEAR_LORA_NODE
         printf("  wifi_ssid   — Wi-Fi SSID\n");
         printf("  wifi_pass   — Wi-Fi password\n");
         printf("  mqtt_url    — e.g. mqtt://192.168.1.100:1883\n");
         printf("  mqtt_user   — MQTT username\n");
         printf("  mqtt_pass   — MQTT password\n");
         printf("  mqtt_device_id — gateway ID for MQTT topics\n");
+        printf("  cap_mic / cap_rx / cap_bridge — off | on | auto\n");
 #endif
 #ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR
         printf("  mqtt_url    — e.g. mqtt://192.168.1.100:1883\n");
@@ -369,7 +388,7 @@ static int cmd_set(int argc, char **argv)
     (void)value;  /* Not all role permutations dispatch on value (cppcheck). */
 
     /* net_key — LoRa-only (Detector + Gateway) */
-#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
+#if defined(CONFIG_BATEAR_LORA_NODE)
     if (strcmp(key, "net_key") == 0) {
         uint8_t blob[16];
         if (!hex_to_bytes(value, blob, 16)) {
@@ -380,7 +399,7 @@ static int cmd_set(int argc, char **argv)
     }
 #endif
 
-#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_GATEWAY)
+#if defined(CONFIG_BATEAR_LORA_NODE)
     if (strcmp(key, "lora_freq") == 0) {
         long freq = atol(value);
         if (freq < 100000 || freq > 1000000) {
@@ -400,7 +419,7 @@ static int cmd_set(int argc, char **argv)
     }
 #endif
 
-#if defined(CONFIG_BATEAR_ROLE_DETECTOR) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
+#if defined(CONFIG_BATEAR_LORA_NODE) || defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
     if (strcmp(key, "device_id") == 0) {
         int id = atoi(value);
         if (id < 0 || id > 255) {
@@ -411,7 +430,7 @@ static int cmd_set(int argc, char **argv)
     }
 #endif
 
-#ifdef CONFIG_BATEAR_ROLE_GATEWAY
+#ifdef CONFIG_BATEAR_LORA_NODE
     if (strcmp(key, "wifi_ssid") == 0)
         return set_nvs_str("gateway_cfg", "wifi_ssid", value);
     if (strcmp(key, "wifi_pass") == 0)
@@ -424,6 +443,22 @@ static int cmd_set(int argc, char **argv)
         return set_nvs_str("gateway_cfg", "mqtt_pass", value);
     if (strcmp(key, "mqtt_device_id") == 0)
         return set_nvs_str("gateway_cfg", "device_id", value);
+
+    if (strcmp(key, "cap_mic") == 0 || strcmp(key, "cap_rx") == 0 ||
+        strcmp(key, "cap_bridge") == 0) {
+        uint8_t v;
+        if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0) {
+            v = 0;
+        } else if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0) {
+            v = 1;
+        } else if (strcmp(value, "auto") == 0 || strcmp(value, "2") == 0) {
+            v = 2;
+        } else {
+            printf("Error: %s must be off, on or auto\n", key);
+            return 1;
+        }
+        return set_nvs_u8("node_cfg", key, v);
+    }
 #endif
 
 #ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR

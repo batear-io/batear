@@ -83,9 +83,10 @@ batear/
 │   ├── audio_processor.c/.h    # [detector/wired] ESP-DSP FFT + PSD + harmonic analysis
 │   ├── audio_task.c/.h         # [detector/wired] I2S mic + detection state machine
 │   ├── battery.c/.h            # [detector] VBAT ADC + divider gating
-│   ├── lora_task.cpp/.h        # [detector] LoRa TX (alarm/clear/heartbeat + local retry)
+│   ├── node_caps.c/.h          # [node]     runtime capabilities (mic / rx / bridge)
+│   ├── lora_radio.cpp/.h       # [node]     owns the SX1262: TX own events, RX → node_rx
 │   ├── eth_mqtt_task.cpp/.h    # [wired]    W5500 Ethernet + MQTT + HA Discovery
-│   ├── gateway_task.cpp/.h     # [gateway]  LoRa RX + OLED + LED
+│   ├── node_rx.cpp/.h          # [node]     decrypt + replay check + OLED + LED → MQTT
 │   ├── mqtt_task.cpp/.h        # [gateway]  WiFi + MQTT + HA Discovery
 │   ├── oled.c/.h               # [gateway]  SSD1306 128x64 driver
 │   └── idf_component.yml       # RadioLib + ESP-DSP + W5500 dependencies

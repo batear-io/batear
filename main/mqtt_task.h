@@ -2,7 +2,7 @@
  * mqtt_task.h — WiFi + MQTT + Home Assistant discovery (gateway only)
  *
  * MqttTask runs on Core 1, receives detection events from
- * GatewayTask via a FreeRTOS queue and publishes to MQTT.
+ * node_rx (LoRaTask) via a FreeRTOS queue and publishes to MQTT.
  */
 #pragma once
 
@@ -36,7 +36,7 @@ typedef struct {
     uint8_t  flags;
 } MqttEvent_t;
 
-/* Queue populated by GatewayTask, consumed by MqttTask. */
+/* Queue populated by node_rx, consumed by MqttTask. */
 extern QueueHandle_t g_mqtt_event_queue;
 
 void MqttTask(void *pvParameters);

@@ -9,17 +9,11 @@ endif()
 
 set(SRCS "main.cpp" "lorawan_provision.c" "config_console.c")
 
-# RadioLib HAL only needed for LoRa roles
-if(CONFIG_BATEAR_ROLE_DETECTOR OR CONFIG_BATEAR_ROLE_GATEWAY)
-    list(APPEND SRCS "EspIdfHal.cpp")
-endif()
-
-if(CONFIG_BATEAR_ROLE_DETECTOR)
-    list(APPEND SRCS "audio_task.c" "audio_processor.c" "lora_task.cpp" "battery.c")
-endif()
-
-if(CONFIG_BATEAR_ROLE_GATEWAY)
-    list(APPEND SRCS "oled.c" "gateway_task.cpp" "mqtt_task.cpp")
+# LoRa node: one image, capabilities (mic / rx / bridge) chosen at runtime
+if(CONFIG_BATEAR_LORA_NODE)
+    list(APPEND SRCS "EspIdfHal.cpp" "node_caps.c" "lora_radio.cpp" "node_rx.cpp"
+                     "audio_task.c" "audio_processor.c" "battery.c"
+                     "oled.c" "mqtt_task.cpp")
 endif()
 
 if(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
@@ -53,7 +47,7 @@ set(PRIV_DEPS
     fatfs sdmmc esp_driver_sdmmc esp_ringbuf vfs
 )
 
-if(CONFIG_BATEAR_ROLE_DETECTOR OR CONFIG_BATEAR_ROLE_GATEWAY)
+if(CONFIG_BATEAR_LORA_NODE)
     list(APPEND PRIV_DEPS jgromes__radiolib)
 endif()
 
@@ -68,6 +62,6 @@ idf_component_register(
 )
 
 # Suppress RadioLib upstream warnings about overloaded virtuals (C++ only)
-if(CONFIG_BATEAR_ROLE_DETECTOR OR CONFIG_BATEAR_ROLE_GATEWAY)
+if(CONFIG_BATEAR_LORA_NODE)
     target_compile_options(${COMPONENT_LIB} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wno-overloaded-virtual>)
 endif()

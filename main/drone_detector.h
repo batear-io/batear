@@ -1,7 +1,7 @@
 /*
  * drone_detector.h — shared types and inter-task queue handle
  *
- * Included by both audio_task.c (C) and lora_task.cpp (C++), so all
+ * Included by both audio_task.c (C) and lora_radio.cpp (C++), so all
  * declarations are wrapped in extern "C".
  */
 #pragma once

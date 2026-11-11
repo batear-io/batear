@@ -13,3 +13,7 @@ CONFIG_BATEAR_LORA_SYNC_WORD=0x12
 
 # Telemetry heartbeat (jittered ±10% in firmware)
 CONFIG_BATEAR_TELEMETRY_HEARTBEAT_MIN=30
+
+# Partition table (3 MiB app for the combined LoRa node image)
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_lora.csv"
