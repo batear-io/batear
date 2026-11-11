@@ -50,21 +50,23 @@ void node_caps_init(void)
     uint8_t mic    = load_cap(h, opened, "cap_mic",    CONFIG_BATEAR_CAP_MIC_DEFAULT);
     uint8_t rx     = load_cap(h, opened, "cap_rx",     CONFIG_BATEAR_CAP_RX_DEFAULT);
     uint8_t bridge = load_cap(h, opened, "cap_bridge", CONFIG_BATEAR_CAP_BRIDGE_DEFAULT);
+    uint8_t relay  = load_cap(h, opened, "cap_relay",  CONFIG_BATEAR_CAP_RELAY_DEFAULT);
     if (opened) {
         nvs_close(h);
     }
 
     s_caps.mic    = (mic == NODE_CAP_AUTO) ? audio_mic_probe() : (mic == NODE_CAP_ON);
     s_caps.bridge = (bridge == NODE_CAP_AUTO) ? wifi_ssid_configured() : (bridge == NODE_CAP_ON);
+    s_caps.relay  = (relay == NODE_CAP_ON);
     s_caps.rx     = (rx == NODE_CAP_AUTO) ? !s_caps.mic : (rx == NODE_CAP_ON);
-    if (s_caps.bridge && !s_caps.rx) {
-        ESP_LOGW(TAG, "bridge needs rx — enabling rx");
+    if ((s_caps.bridge || s_caps.relay) && !s_caps.rx) {
+        ESP_LOGW(TAG, "bridge/relay need rx — enabling rx");
         s_caps.rx = true;
     }
 
-    ESP_LOGI(TAG, "mic=%d (%s)  rx=%d (%s)  bridge=%d (%s)",
+    ESP_LOGI(TAG, "mic=%d (%s)  rx=%d (%s)  bridge=%d (%s)  relay=%d (%s)",
              s_caps.mic, cap_src(mic), s_caps.rx, cap_src(rx),
-             s_caps.bridge, cap_src(bridge));
+             s_caps.bridge, cap_src(bridge), s_caps.relay, cap_src(relay));
 }
 
 const node_caps_t *node_caps(void)

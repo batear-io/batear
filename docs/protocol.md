@@ -67,6 +67,18 @@ The gateway is a passive receiver. There is no PHY-level acknowledgement:
 
 If a detector's flash is fully erased (e.g. the web flasher's "Erase device" option), its `boot_id` restarts from a random value. A normal reflash does not reset it. The gateway may then treat it as older and reject it until the gateway is rebooted; the gateway logs `REPLAY ... (last boot=... seq=...)` when this happens.
 
+## Mesh relay
+
+Nodes with `cap_relay` on re-transmit packets from other nodes, so a detector out of range of every bridge still reaches one through a relay. It is controlled flooding — no routing tables:
+
+- **Dedup.** Every listening node keeps a ring of the last 64 accepted `(orig_id, boot_id, seq)` keys. A copy of a packet already accepted (heard directly, or via another relay) is dropped before decryption. Only keys of packets that authenticated and were fresh go in the ring, so a forged header can't make a node drop a genuine packet.
+- **What is relayed.** Only other nodes' packets that authenticated, were fresh, and have TTL > 0. The relay decrements TTL in place; TTL is outside the GCM AAD, so the tag stays valid. Originators send TTL 3, so a packet crosses at most 3 relays.
+- **Slotted backoff.** A relay waits a random number of slots (`BATEAR_MESH_SLOT_MS`, default 600 ms — at least one packet airtime) plus up to 50 ms jitter: 0–3 slots for alarm/clear, 0–7 for heartbeats. Two relays that hear the same packet usually pick different slots instead of transmitting over each other.
+- **Suppression.** If a relay hears another relay's copy of a packet (TTL at or below its own pending copy) while its own is still waiting, it cancels its own (`BATEAR_MESH_SUPPRESS_DUPS`, default 1). The originator's own retry has a higher TTL and does not count.
+- **Rate limit.** A token bucket caps relays at `BATEAR_MESH_RELAY_PER_HOUR` (default 60, burst 10). At ~0.5 s per packet that's ~30 s of airtime per hour, inside the EU 868 MHz 1 % duty-cycle limit. Raise it on bands without one.
+
+Relaying adds latency: up to ~2.4 s per hop for alarm/clear with the defaults. A relay listens continuously (~10–15 mA), so it should be mains-powered.
+
 ## Airtime budget
 
 At SF10 / BW125 / CR4/5 the 38-byte packet is ~494 ms on air (48 payload symbols — the same as the old 36-byte frame). The default 30 min heartbeat puts each detector at ~1 s/hour of TX time (0.028% duty cycle), leaving generous headroom for the EU 868 MHz 1%/hour cap and essentially unlimited room on the US/AS 915 MHz ISM bands.

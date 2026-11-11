@@ -11,7 +11,7 @@ set(SRCS "main.cpp" "lora_provision.c" "config_console.c")
 
 # LoRa node: one image, capabilities (mic / rx / bridge) chosen at runtime
 if(CONFIG_BATEAR_LORA_NODE)
-    list(APPEND SRCS "EspIdfHal.cpp" "node_caps.c" "lora_radio.cpp" "node_rx.cpp"
+    list(APPEND SRCS "EspIdfHal.cpp" "node_caps.c" "lora_radio.cpp" "node_rx.cpp" "mesh.c"
                      "audio_task.c" "audio_processor.c" "battery.c"
                      "oled.c" "mqtt_task.cpp")
 endif()

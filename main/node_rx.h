@@ -15,8 +15,16 @@ extern "C" {
 /* Power the display, init OLED + LED, show the idle screen. */
 void node_rx_init(void);
 
-/* Handle one frame received over the air. */
-void node_rx_packet(const uint8_t *buf, size_t len, float rssi, float snr);
+typedef enum {
+    NODE_RX_BAD,     /* wrong length / version, or failed authentication */
+    NODE_RX_STALE,   /* authentic but not newer than the last accepted     */
+    NODE_RX_OK,      /* accepted and delivered                             */
+} node_rx_result_t;
+
+/* Handle one frame received over the air. On NODE_RX_OK, *event_type is the
+ * decrypted event type (LORA_EVENT_*). */
+node_rx_result_t node_rx_packet(const uint8_t *buf, size_t len, float rssi, float snr,
+                                uint8_t *event_type);
 
 /* Handle an event this node originated itself (it can't hear its own TX). */
 void node_rx_local(const lora_header_t *hdr, const lora_plaintext_t *pt);

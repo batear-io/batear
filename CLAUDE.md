@@ -108,6 +108,7 @@ batear/
 │   ├── manual_capture.c/.h     # [wired]    BOOT (GPIO 0) push-to-talk handler
 │   ├── ntp_time.c/.h           # [wired]    SNTP for recording filename timestamps
 │   ├── node_rx.cpp/.h          # [node]     decrypt + replay check + OLED + LED → MQTT
+│   ├── mesh.c/.h               # [node]     relay: dedup ring, slotted backoff, suppression, hourly budget (host test: test/host/test_mesh.c)
 │   ├── mqtt_task.cpp/.h        # [gateway]  WiFi + MQTT + HA Discovery
 │   ├── oled.c/.h               # [gateway]  SSD1306 128x64 driver
 │   └── idf_component.yml       # RadioLib + ESP-DSP + W5500 dependencies
