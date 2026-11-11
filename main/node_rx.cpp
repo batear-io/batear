@@ -9,7 +9,7 @@
 
 #include "node_rx.h"
 #include "mqtt_task.h"
-#include "lorawan_provision.h"
+#include "lora_provision.h"
 #include "pin_config.h"
 #include "oled.h"
 
@@ -218,7 +218,7 @@ extern "C" void node_rx_packet(const uint8_t *buf, size_t len, float rssi, float
 
     const lora_packet_t *pkt = reinterpret_cast<const lora_packet_t *>(buf);
     lora_plaintext_t pt;
-    const uint8_t *net_key = lorawan_get_keys()->app_key;
+    const uint8_t *net_key = lora_get_keys()->net_key;
     if (!lora_decrypt(net_key, pkt, &pt)) {
         ESP_LOGW(TAG, "decrypt FAILED — wrong key, forged, or bad frame version");
         node_rx_error();

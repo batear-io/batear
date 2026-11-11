@@ -20,17 +20,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - role: detector_v3
-            sdkconfig_extra: sdkconfig.detector_v3
+          - role: node_v3
+            sdkconfig_extra: sdkconfig.node_v3
             flash_size: 8MB
-          - role: detector_v4
-            sdkconfig_extra: sdkconfig.detector_v4
-            flash_size: 16MB
-          - role: gateway_v3
-            sdkconfig_extra: sdkconfig.gateway_v3
-            flash_size: 8MB
-          - role: gateway_v4
-            sdkconfig_extra: sdkconfig.gateway_v4
+          - role: node_v4
+            sdkconfig_extra: sdkconfig.node_v4
             flash_size: 16MB
           - role: wired_detector
             sdkconfig_extra: sdkconfig.wired_detector
@@ -89,7 +83,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          ROLES="detector_v3 detector_v4 gateway_v3 gateway_v4 wired_detector"
+          ROLES="node_v3 node_v4 wired_detector"
           REPO="${{ github.repository }}"
           R=/tmp/size_report.md
           sign() { local v=$1; [ "$v" -gt 0 ] && echo "+${v}" || echo "${v}"; }
@@ -173,8 +167,6 @@ jobs:
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
           make_latest: ${{ startsWith(github.ref, 'refs/tags/') }}
           files: |
-            merged_detector_v3.bin
-            merged_detector_v4.bin
-            merged_gateway_v3.bin
-            merged_gateway_v4.bin
+            merged_node_v3.bin
+            merged_node_v4.bin
             merged_wired_detector.bin

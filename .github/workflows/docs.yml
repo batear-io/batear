@@ -49,8 +49,16 @@ jobs:
             dir="docs/flasher/firmware/$release"
             base="https://github.com/${{ github.repository }}/releases/download/$release"
             mkdir -p "$dir"
-            for f in merged_detector_v3 merged_detector_v4 merged_gateway_v3 merged_gateway_v4 merged_wired_detector; do
+            for f in merged_node_v3 merged_node_v4 merged_detector_v3 merged_detector_v4 merged_gateway_v3 merged_gateway_v4 merged_wired_detector; do
               curl -sfL "$base/$f.bin" -o "$dir/$f.bin" || rm -f "$dir/$f.bin"
+            done
+            # v3.0+ ships one LoRa node image per board; the flasher's Detector and
+            # Gateway tabs both flash it (with different node_cfg caps in NVS).
+            for v in v3 v4; do
+              if [ -f "$dir/merged_node_$v.bin" ]; then
+                cp "$dir/merged_node_$v.bin" "$dir/merged_detector_$v.bin"
+                mv "$dir/merged_node_$v.bin" "$dir/merged_gateway_$v.bin"
+              fi
             done
             # Releases before the V3/V4 split shipped unsuffixed V3 builds.
             for role in detector gateway; do

@@ -17,7 +17,7 @@
 #include "node_rx.h"
 #include "drone_detector.h"
 #include "lora_crypto.h"
-#include "lorawan_provision.h"
+#include "lora_provision.h"
 #include "battery.h"
 #include "EspIdfHal.h"
 #include "pin_config.h"
@@ -155,7 +155,7 @@ static void fill_telemetry(lora_plaintext_t *pt)
 
 static bool lora_init(void)
 {
-    const lorawan_keys_t *keys = lorawan_get_keys();
+    const lora_keys_t *keys = lora_get_keys();
     float freq_mhz = keys->lora_freq_khz / 1000.0f;
     uint8_t sync_word = keys->lora_sync_word;
 
@@ -290,7 +290,7 @@ static void send_event(const DroneEvent_t &ev, int &consecutive_fails)
 
     /* (boot_id, seq) must never repeat: on seq wrap, start a new boot_id. */
     if (s_tx_seq == UINT16_MAX) {
-        s_boot_id = lorawan_next_boot_id();
+        s_boot_id = lora_next_boot_id();
         s_tx_seq  = 0;
         ESP_LOGI(TAG, "seq wrapped — new boot_id=%u", (unsigned)s_boot_id);
     }
@@ -300,7 +300,7 @@ static void send_event(const DroneEvent_t &ev, int &consecutive_fails)
      * mis-reported locally is dedup'd by the gateway's replay counter. */
     lora_plaintext_t pt = {};
     pt.seq        = s_tx_seq++;
-    pt.device_id  = lorawan_get_keys()->device_id;
+    pt.device_id  = lora_get_keys()->device_id;
     pt.event_type = static_cast<uint8_t>(ev.type);
     pt.f0_bin     = is_heartbeat ? 0 : static_cast<uint8_t>(ev.f0_bin);
     pt.rms_db     = is_heartbeat ? 0 : lora_rms_to_db(ev.rms);
@@ -315,7 +315,7 @@ static void send_event(const DroneEvent_t &ev, int &consecutive_fails)
     }
 
     lora_packet_t pkt;
-    const uint8_t *net_key = lorawan_get_keys()->app_key;
+    const uint8_t *net_key = lora_get_keys()->net_key;
     if (!lora_encrypt(net_key, &hdr, &pt, &pkt)) {
         /* Encrypt failures are software-level (PSA init, key import) —
          * retrying will not help and burns airtime budget. Bail early. */
@@ -446,7 +446,7 @@ extern "C" void LoRaTask(void *pvParameters)
         node_rx_init();
     }
 
-    s_boot_id = lorawan_next_boot_id();
+    s_boot_id = lora_next_boot_id();
     ESP_LOGI(TAG, "frame v%d  boot_id=%u  tx=%d rx=%d", LORA_FRAME_VERSION,
              (unsigned)s_boot_id, s_tx_enabled, s_rx_enabled);
 
