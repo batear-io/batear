@@ -425,10 +425,11 @@ export function generateWiredNvsImage(deviceId, wiredCfg) {
  * @param {string}      gwCfg.mqttUser
  * @param {string}      gwCfg.mqttPass
  * @param {string}      gwCfg.deviceId
- * @param {Object|null} caps     - LoRa node caps {mic, rx, bridge}, null to omit
+ * @param {Object|null} caps     - LoRa node caps {mic, rx, bridge, relay}, null to omit
+ * @param {number|null} deviceId - LoRa device ID (0-255) for a node that also detects, null to omit
  * @returns {Uint8Array} 8192-byte NVS image (2 pages)
  */
-export function generateGatewayNvsImage(devEui, appKey, gwCfg, caps = null) {
+export function generateGatewayNvsImage(devEui, appKey, gwCfg, caps = null, deviceId = null) {
   if (devEui.length !== 8)  throw new Error("dev_eui must be 8 bytes");
   if (appKey.length !== 16) throw new Error("app_key must be 16 bytes");
 
@@ -450,6 +451,9 @@ export function generateGatewayNvsImage(devEui, appKey, gwCfg, caps = null) {
 
   let idx = writeBlobEntries(p0, 1, 1, "dev_eui", devEui);
   idx = writeBlobEntries(p0, idx, 1, "app_key", appKey);
+  if (deviceId !== null && deviceId !== undefined) {
+    idx = writeU8Entry(p0, idx, 1, "device_id", deviceId);
+  }
   if (caps) {
     writeNodeCaps(p0, idx, caps);
   }
