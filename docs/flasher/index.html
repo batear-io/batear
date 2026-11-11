@@ -83,8 +83,17 @@
     .cfg-field .hint{font-size:12px;color:var(--text-muted);margin-top:3px}
     .cfg-field .hint.error{color:var(--red)}
     .version-note{font-size:12px;color:var(--text-muted);margin-top:6px}
-    @media (max-width:560px){.role-tabs{flex-wrap:wrap}.role-tab{flex:1 1 50%;border-bottom:1px solid var(--border)}}
-    .relay-toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);margin-top:12px;cursor:pointer}
+    @media (max-width:560px){.role-tabs{flex-wrap:wrap}.role-tab{flex:1 1 50%;border-bottom:1px solid var(--border)}.cfg-row{grid-template-columns:1fr;gap:0}}
+    .presets{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:18px;font-size:13px;color:var(--text-muted)}
+    .cap{border:1px solid var(--border);border-radius:6px;background:var(--bg);padding:12px 14px;margin-bottom:10px}
+    .cap-head{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+    .cap-head input{accent-color:var(--accent);width:16px;height:16px;margin-top:3px;flex-shrink:0}
+    .cap-head strong{display:block;font-size:14px}
+    .cap-head small{display:block;font-size:12px;color:var(--text-muted)}
+    .cap-head input:disabled + span{opacity:.7}
+    .cap-body{display:none;margin-top:12px;padding-left:26px}
+    .cap.on .cap-body{display:block}
+    .cap-body .cfg-field input:not([type="number"]){width:100%}
     .cfg-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .btn-sm{padding:8px 14px;font-size:13px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .15s}
     .btn-sm:hover{border-color:var(--accent);color:var(--accent)}
@@ -211,17 +220,9 @@
 
     <!-- Role Tabs -->
     <div class="role-tabs">
-      <button class="role-tab active" data-role="detector">
-        <span class="tab-label">Detector</span>
-        <span class="tab-sub">LoRa TX</span>
-      </button>
-      <button class="role-tab" data-role="gateway">
-        <span class="tab-label">Gateway</span>
-        <span class="tab-sub">LoRa RX + MQTT</span>
-      </button>
-      <button class="role-tab" data-role="relay">
-        <span class="tab-label">Relay</span>
-        <span class="tab-sub">LoRa repeater</span>
+      <button class="role-tab active" data-role="node">
+        <span class="tab-label">LoRa Node</span>
+        <span class="tab-sub">Detector / Gateway / Relay</span>
       </button>
       <button class="role-tab" data-role="wired_detector">
         <span class="tab-label">Wired Detector</span>
@@ -231,30 +232,13 @@
 
     <!-- Role Info -->
     <div class="role-info">
-      <div class="role-info-panel active" data-role="detector">
-        <p>Captures audio via ICS-43434 MEMS microphone, runs FFT-based harmonic analysis, and transmits drone alerts over encrypted LoRa.</p>
+      <div class="role-info-panel active" data-role="node">
+        <p>One firmware for every Heltec board in the LoRa network. Tick what this board should do &mdash; detect drones, publish to Home Assistant, relay for other nodes, or any combination &mdash; or start from a preset.</p>
         <div class="specs">
           <span>I2S Mic + DSP</span>
-          <span>LoRa TX (SX1262)</span>
-          <span>AES-128-GCM</span>
-          <span>Heltec WiFi LoRa 32 V3 / V4</span>
-        </div>
-      </div>
-      <div class="role-info-panel" data-role="gateway">
-        <p>Receives encrypted LoRa alerts from detectors, displays status on OLED, and forwards events to Home Assistant via MQTT over Wi-Fi. Several gateways can share one detector fleet &mdash; Home Assistant still sees one device per detector.</p>
-        <div class="specs">
-          <span>LoRa RX (SX1262)</span>
-          <span>SSD1306 OLED</span>
+          <span>LoRa (SX1262) + AES-128-GCM</span>
+          <span>Mesh relay</span>
           <span>MQTT + HA Discovery</span>
-          <span>Heltec WiFi LoRa 32 V3 / V4</span>
-        </div>
-      </div>
-      <div class="role-info-panel" data-role="relay">
-        <p>Listens for other nodes' packets and re-transmits them, so detectors out of range of every gateway still get through. Needs mains power (it listens continuously) and firmware v3.0+.</p>
-        <div class="specs">
-          <span>LoRa RX + TX (SX1262)</span>
-          <span>Up to 3 hops</span>
-          <span>SSD1306 OLED</span>
           <span>Heltec WiFi LoRa 32 V3 / V4</span>
         </div>
       </div>
@@ -287,62 +271,86 @@
         </div>
       </div>
 
-      <!-- Detector config -->
-      <div class="role-config active" data-role="detector">
-        <div class="cfg-field">
-          <label>Detector Device ID (0&ndash;255)</label>
-          <div class="input-row">
-            <input type="number" id="detDeviceId" min="0" max="255" step="1" placeholder="1" style="max-width:120px">
-          </div>
-          <div class="hint" id="hintDetDevId">Unique per detector &mdash; the gateway shows which device triggered an alarm.</div>
-        </div>
-      </div>
-
-      <!-- Gateway config -->
-      <div class="role-config" data-role="gateway">
+      <!-- LoRa node: capabilities -->
+      <div class="role-config active" data-role="node">
         <hr class="cfg-divider">
-        <div class="section-title">// Gateway &mdash; Wi-Fi / MQTT</div>
-        <div class="cfg-row">
-          <div class="cfg-field">
-            <label>Wi-Fi SSID</label>
-            <input type="text" id="gwWifiSsid" placeholder="MyNetwork" spellcheck="false" autocomplete="off">
-          </div>
-          <div class="cfg-field">
-            <label>Wi-Fi Password</label>
-            <input type="password" id="gwWifiPass" placeholder="••••••••" autocomplete="off">
-          </div>
+        <div class="section-title">// What should this board do?</div>
+        <div class="presets">
+          Presets:
+          <button class="btn-sm" data-preset="detector">Detector</button>
+          <button class="btn-sm" data-preset="gateway">Gateway</button>
+          <button class="btn-sm" data-preset="relay">Relay</button>
         </div>
-        <div class="cfg-field">
-          <label>MQTT Broker URL</label>
-          <input type="text" id="gwMqttUrl" placeholder="mqtt://192.168.1.100:1883" spellcheck="false" autocomplete="off">
-          <div class="hint">Use mqtt:// or mqtts:// &mdash; e.g. mqtt://homeassistant.local:1883</div>
-        </div>
-        <div class="cfg-row">
-          <div class="cfg-field">
-            <label>MQTT Username</label>
-            <input type="text" id="gwMqttUser" placeholder="ha_user" spellcheck="false" autocomplete="off">
-          </div>
-          <div class="cfg-field">
-            <label>MQTT Password</label>
-            <input type="password" id="gwMqttPass" placeholder="••••••••" autocomplete="off">
-          </div>
-        </div>
-        <div class="cfg-field">
-          <label>Gateway Device ID</label>
-          <input type="text" id="gwDeviceId" placeholder="gw01" maxlength="31" spellcheck="false" autocomplete="off">
-          <div class="hint">Unique per gateway &mdash; used for this gateway's own topics, e.g. batear/nodes/gw01/status</div>
-        </div>
-        <label class="relay-toggle">
-          <input type="checkbox" id="gwRelay">
-          Also relay packets for other nodes (v3.0+, mains power)
-        </label>
-      </div>
 
-      <!-- Relay config: only the network key above -->
-      <div class="role-config" data-role="relay">
-        <div class="cfg-field">
-          <div class="hint">Only the network key is needed &mdash; it must match the rest of the network.</div>
+        <div class="cap" id="capMicBox">
+          <label class="cap-head">
+            <input type="checkbox" id="capMic">
+            <span><strong>Detect drones</strong><small>Run the microphone detector and send alarms over LoRa. Works on battery.</small></span>
+          </label>
+          <div class="cap-body">
+            <div class="cfg-field">
+              <label>Device ID (0&ndash;255)</label>
+              <div class="input-row">
+                <input type="number" id="detDeviceId" min="0" max="255" step="1" placeholder="1" style="max-width:120px">
+              </div>
+              <div class="hint" id="hintDetDevId">Unique per detecting node &mdash; Home Assistant shows one device per ID.</div>
+            </div>
+          </div>
         </div>
+
+        <div class="cap" id="capBridgeBox">
+          <label class="cap-head">
+            <input type="checkbox" id="capBridge">
+            <span><strong>Publish to Home Assistant</strong><small>Forward everything this board receives to MQTT over Wi-Fi. Run as many as you like.</small></span>
+          </label>
+          <div class="cap-body">
+            <div class="cfg-row">
+              <div class="cfg-field">
+                <label>Wi-Fi SSID</label>
+                <input type="text" id="gwWifiSsid" placeholder="MyNetwork" spellcheck="false" autocomplete="off">
+              </div>
+              <div class="cfg-field">
+                <label>Wi-Fi Password</label>
+                <input type="password" id="gwWifiPass" placeholder="••••••••" autocomplete="off">
+              </div>
+            </div>
+            <div class="cfg-field">
+              <label>MQTT Broker URL</label>
+              <input type="text" id="gwMqttUrl" placeholder="mqtt://192.168.1.100:1883" spellcheck="false" autocomplete="off">
+              <div class="hint">Use mqtt:// or mqtts:// &mdash; e.g. mqtt://homeassistant.local:1883</div>
+            </div>
+            <div class="cfg-row">
+              <div class="cfg-field">
+                <label>MQTT Username</label>
+                <input type="text" id="gwMqttUser" placeholder="ha_user" spellcheck="false" autocomplete="off">
+              </div>
+              <div class="cfg-field">
+                <label>MQTT Password</label>
+                <input type="password" id="gwMqttPass" placeholder="••••••••" autocomplete="off">
+              </div>
+            </div>
+            <div class="cfg-field">
+              <label>Gateway ID</label>
+              <input type="text" id="gwDeviceId" placeholder="gw01" maxlength="31" spellcheck="false" autocomplete="off">
+              <div class="hint">Unique per publishing board &mdash; used for its own topics, e.g. batear/nodes/gw01/status</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cap" id="capRelayBox">
+          <label class="cap-head">
+            <input type="checkbox" id="capRelay">
+            <span><strong>Relay for other nodes</strong><small>Re-transmit packets so detectors out of range of every gateway still get through (up to 3 hops). v3.0+.</small></span>
+          </label>
+        </div>
+
+        <div class="cap" id="capRxBox">
+          <label class="cap-head">
+            <input type="checkbox" id="capRx">
+            <span><strong>Show received events on the OLED</strong><small id="capRxNote">Listen for other nodes and show their alarms on the display and LED.</small></span>
+          </label>
+        </div>
+        <div class="key-status default-key" id="capWarn" style="display:none"><span></span></div>
       </div>
 
       <!-- Wired Detector config -->
@@ -444,7 +452,7 @@
         <div class="step">
           <div class="step-num">02</div>
           <h4>Choose Role &amp; Configure</h4>
-          <p>Select your firmware role in the tab selector above. Fill in any configuration fields, then click <strong>Install</strong>.</p>
+          <p>Pick <strong>LoRa Node</strong> (Heltec) or <strong>Wired Detector</strong> (LILYGO). For a LoRa node, tick what the board should do or use a preset, fill in the fields that appear, then click <strong>Install</strong>.</p>
         </div>
         <div class="step">
           <div class="step-num">03</div>
@@ -535,9 +543,10 @@
         <details class="faq">
           <summary>How do I connect the gateway to Home Assistant?</summary>
           <div class="answer">
-            Select the <strong>Gateway</strong> tab and fill
-            in your Wi-Fi credentials and MQTT broker URL (e.g. <code>mqtt://192.168.1.100:1883</code>).
-            These are written to NVS and the gateway will connect to Wi-Fi &amp; MQTT on boot.
+            On the <strong>LoRa Node</strong> tab, tick <strong>Publish to Home Assistant</strong>
+            (or use the <em>Gateway</em> preset) and fill in your Wi-Fi credentials and MQTT broker URL
+            (e.g. <code>mqtt://192.168.1.100:1883</code>). These are written to NVS and the board
+            connects to Wi-Fi &amp; MQTT on boot.
             Home Assistant discovers each detector automatically via MQTT Discovery &mdash; no manual
             YAML needed. Detector events are published to <code>batear/det/&lt;XX&gt;/state</code> and
             <code>batear/det/&lt;XX&gt;/status</code> (v3.0+).
@@ -546,7 +555,7 @@
         <details class="faq">
           <summary>Can I use more than one gateway?</summary>
           <div class="answer">
-            Yes (v3.0+). Give each gateway its own Gateway Device ID. Every gateway that hears a
+            Yes (v3.0+). Give each gateway its own Gateway ID. Every gateway that hears a
             detector publishes it, but Home Assistant still sees one device per detector and one
             state change per alarm &mdash; and alarms keep arriving if one gateway goes offline.
           </div>
@@ -555,16 +564,17 @@
           <summary>What does a relay do?</summary>
           <div class="answer">
             A relay re-transmits packets it hears from other nodes, so a detector out of range of
-            every gateway can still reach one (up to 3 hops). Flash the <strong>Relay</strong> tab,
-            or tick &ldquo;Also relay&rdquo; on a gateway. Relays listen continuously, so use mains
-            power, not a battery. Each hop adds up to ~2.4&nbsp;s of latency.
+            every gateway can still reach one (up to 3 hops). Tick <strong>Relay for other nodes</strong>
+            on any LoRa node &mdash; a dedicated relay, a gateway, or a mains-powered detector.
+            Relaying means listening continuously, so use mains power, not a battery. Each hop adds
+            up to ~2.4&nbsp;s of latency.
           </div>
         </details>
         <details class="faq">
           <summary>Which boards are supported?</summary>
           <div class="answer">
             <strong>Heltec WiFi LoRa 32 V3 / V4</strong> (ESP32-S3 + SX1262) &mdash; used for
-            Detector, Gateway and Relay roles.<br>
+            LoRa nodes (detector, gateway, relay, or any combination).<br>
             <strong>LILYGO T-ETH-Lite S3</strong> (ESP32-S3 + W5500 Ethernet) &mdash; used for
             the Wired Detector role.
           </div>
@@ -597,40 +607,23 @@
     const NVS_OFFSET = 0x9000;
 
     /* ---- Role state ---- */
-    let currentRole = "detector";
-    const ROLE_LABELS = {
-      detector: "Detector",
-      gateway: "Gateway",
-      relay: "Relay",
-      wired_detector: "Wired Detector"
-    };
-    /* v3.0+ ships one LoRa node image; the docs deploy publishes it under both
-       the detector and gateway names. The relay tab uses the gateway copy. */
-    const ROLE_FW = {
-      detector: "detector",
-      gateway: "gateway",
-      relay: "gateway",
-      wired_detector: "wired_detector"
-    };
-    /* LoRa node capabilities written to NVS node_cfg (0 = off, 1 = on, 2 = auto).
-       v3.0+ flashes the same node image for both tabs; older firmware ignores these. */
-    const ROLE_CAPS = {
-      detector: { mic: 1, rx: 0, bridge: 0, relay: 0 },
-      gateway:  { mic: 0, rx: 1, bridge: 2, relay: 0 },
-      relay:    { mic: 0, rx: 1, bridge: 0, relay: 1 }
-    };
+    let currentRole = "node";
 
-    /* Relaying needs v3.0+ firmware; older images would just run as a gateway. */
-    function supportsRelay(tag) {
+    /* v3.0+ ships one LoRa node image (the docs deploy publishes it under both
+       the detector and gateway names). v2.x had separate detector / gateway
+       images and no capabilities, so only their two fixed shapes can be flashed. */
+    function isV3(tag) {
       if (tag === "firmware-latest") return true;
       const m = /^v(\d+)/.exec(tag);
       return m !== null && Number(m[1]) >= 3;
     }
-    const ROLE_MANIFEST = {
-      detector: "manifest_detector.json",
-      gateway: "manifest_gateway.json",
-      wired_detector: "manifest_wired_detector.json"
-    };
+
+    function nodeFirmware(tag, c) {
+      if (isV3(tag)) return { fw: "gateway" };
+      if (c.relay) return { err: "Relaying needs firmware v3.0 or newer \u2014 pick a newer version." };
+      if (c.mic && c.rx) return { err: "Detecting and listening on one board needs firmware v3.0 or newer \u2014 pick a newer version." };
+      return { fw: c.mic ? "detector" : "gateway" };
+    }
 
     /* ---- DOM refs ---- */
     const select       = document.getElementById("versionSelect");
@@ -645,7 +638,14 @@
     const networkKeyPanel  = document.getElementById("networkKeySection");
 
     const detDeviceId  = document.getElementById("detDeviceId");
-    const hintDetDevId = document.getElementById("hintDetDevId");
+
+    const capMic       = document.getElementById("capMic");
+    const capBridge    = document.getElementById("capBridge");
+    const capRelay     = document.getElementById("capRelay");
+    const capRx        = document.getElementById("capRx");
+    const capRxNote    = document.getElementById("capRxNote");
+    const capWarn      = document.getElementById("capWarn");
+    const capBoxes     = { mic: "capMicBox", bridge: "capBridgeBox", relay: "capRelayBox", rx: "capRxBox" };
 
     const gwWifiSsid   = document.getElementById("gwWifiSsid");
     const gwWifiPass   = document.getElementById("gwWifiPass");
@@ -653,7 +653,6 @@
     const gwMqttUser   = document.getElementById("gwMqttUser");
     const gwMqttPass   = document.getElementById("gwMqttPass");
     const gwDeviceId   = document.getElementById("gwDeviceId");
-    const gwRelay      = document.getElementById("gwRelay");
 
     const wdDeviceId   = document.getElementById("wdDeviceId");
     const wdMqttUrl    = document.getElementById("wdMqttUrl");
@@ -685,13 +684,67 @@
     if (boardVersionPicker) {
       boardVersionPicker.style.display = (role === "wired_detector") ? "none" : "";
     }
-      installLabel.textContent = `Install ${ROLE_LABELS[role]}`;
       validateAndUpdate();
     }
 
     tabs.forEach(tab => {
       tab.addEventListener("click", () => setRole(tab.dataset.role));
     });
+
+    /* ---- LoRa node capabilities ---- */
+    // The OLED/listen box is forced on while publishing or relaying (both need
+    // the radio listening); remember the user's own choice for when it isn't.
+    let rxChoice = false;
+
+    function readCaps() {
+      const mic = capMic.checked, bridge = capBridge.checked, relay = capRelay.checked;
+      return { mic, bridge, relay, rx: bridge || relay || rxChoice };
+    }
+
+    function nodeLabel(c) {
+      const parts = [];
+      if (c.mic)    parts.push("Detector");
+      if (c.bridge) parts.push("Gateway");
+      if (c.relay)  parts.push("Relay");
+      if (c.rx && !c.bridge && !c.relay) parts.push("Display");
+      return parts.length ? parts.join(" + ") : "LoRa Node";
+    }
+
+    function syncCapUi() {
+      const c = readCaps();
+      const forced = c.bridge || c.relay;
+      capRx.disabled = forced;
+      capRx.checked = c.rx;
+      capRxNote.textContent = forced
+        ? "Always on while publishing or relaying."
+        : "Listen for other nodes and show their alarms on the display and LED.";
+      for (const [k, id] of Object.entries(capBoxes)) {
+        document.getElementById(id).classList.toggle("on", c[k]);
+      }
+
+      const warns = [];
+      if (c.mic && c.rx) warns.push("This board listens continuously (~10\u201315 mA) \u2014 use mains power, not a battery.");
+      if (c.mic && getDetDeviceId() === null) warns.push("No device ID set \u2014 it will be 1. Give every detecting board its own ID.");
+      if (c.bridge && !gwWifiSsid.value.trim()) warns.push("Enter Wi-Fi details, or this board can't publish to Home Assistant.");
+      capWarn.style.display = warns.length ? "" : "none";
+      capWarn.querySelector("span").innerHTML = warns.map(w => w.replace(/&/g, "&amp;").replace(/</g, "&lt;")).join("<br>");
+    }
+
+    const PRESETS = {
+      detector: { mic: true,  bridge: false, relay: false, rx: false },
+      gateway:  { mic: false, bridge: true,  relay: false, rx: true  },
+      relay:    { mic: false, bridge: false, relay: true,  rx: true  },
+    };
+    document.querySelectorAll("[data-preset]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const p = PRESETS[btn.dataset.preset];
+        capMic.checked = p.mic; capBridge.checked = p.bridge; capRelay.checked = p.relay;
+        rxChoice = p.rx;
+        validateAndUpdate();
+      });
+    });
+    capRx.addEventListener("change", () => { rxChoice = capRx.checked; validateAndUpdate(); });
+    for (const el of [capMic, capBridge, capRelay]) el.addEventListener("change", validateAndUpdate);
 
     staticIpEnable.addEventListener("change", () => {
       staticIpFields.classList.toggle("visible", staticIpEnable.checked);
@@ -807,23 +860,31 @@
 
       let needsPatch = false;
       let nvsImage = null;
+      let fwName = "wired_detector";
+      let label = "Wired Detector";
 
-      // LoRa roles always get an NVS image so the node's capabilities are
-      // explicit rather than left to the firmware's auto-detection.
-      if (role === "detector") {
-        const devId = getDetDeviceId();
-        needsPatch = true;
-        nvsImage = generateNvsImage(devEui, appKey, devId, ROLE_CAPS.detector);
-      } else if (role === "gateway") {
-        const gwCfg = getGwConfig();
-        const caps = { ...ROLE_CAPS.gateway, relay: gwRelay.checked ? 1 : 0 };
+      const block = (msg) => {
+        btnInstall.style.display = "none";
+        keyStatus.className = "key-status default-key";
+        keyStatus.querySelector("span").textContent = msg;
+        return false;
+      };
+
+      if (role === "node") {
+        // Always write node_cfg so the board's job never depends on auto-detection.
+        const c = readCaps();
+        if (!c.mic && !c.rx) return block("Tick at least one thing this board should do.");
+        const f = nodeFirmware(tag, c);
+        if (f.err) return block(f.err);
+        fwName = f.fw;
+        label = nodeLabel(c);
+        const caps = { mic: +c.mic, rx: +c.rx, bridge: +c.bridge, relay: +c.relay };
+        const devId = c.mic ? getDetDeviceId() : null;
+        const gwCfg = c.bridge ? getGwConfig() : null;
         needsPatch = true;
         nvsImage = gwCfg
-          ? generateGatewayNvsImage(devEui, appKey, gwCfg, caps)
-          : generateNvsImage(devEui, appKey, null, caps);
-      } else if (role === "relay") {
-        needsPatch = true;
-        nvsImage = generateNvsImage(devEui, appKey, null, ROLE_CAPS.relay);
+          ? generateGatewayNvsImage(devEui, appKey, gwCfg, caps, devId)
+          : generateNvsImage(devEui, appKey, devId, caps);
       } else if (role === "wired_detector") {
         const devId = getWdDeviceId();
         const wdCfg = getWiredConfig();
@@ -834,24 +895,16 @@
           nvsImage = generateWiredNvsImage(devId, wdCfg);
         }
       }
-
-      const relayWanted = role === "relay" || (role === "gateway" && gwRelay.checked);
-      if (relayWanted && !supportsRelay(tag)) {
-        btnInstall.style.display = "none";
-        keyStatus.className = "key-status default-key";
-        keyStatus.querySelector("span").textContent =
-          "Relaying needs firmware v3.0 or newer \u2014 pick a newer version.";
-        return false;
-      }
       btnInstall.style.display = "";
+      installLabel.textContent = `Install ${label}`;
 
       if (needsPatch && nvsImage) {
-        const fwBuf = await fetchFirmware(fwUrl(tag, ROLE_FW[role]));
+        const fwBuf = await fetchFirmware(fwUrl(tag, fwName));
         patchedUrl = URL.createObjectURL(
           new Blob([patchFirmware(fwBuf, nvsImage)], { type: "application/octet-stream" }));
-        manifestUrl = makeSimpleManifest(`${ROLE_LABELS[role]} ${tag}`, patchedUrl);
+        manifestUrl = makeSimpleManifest(`${label} ${tag}`, patchedUrl);
       } else {
-        manifestUrl = makeSimpleManifest(`${ROLE_LABELS[role]} ${tag}`, fwUrl(tag, ROLE_FW[role]));
+        manifestUrl = makeSimpleManifest(`${label} ${tag}`, fwUrl(tag, fwName));
       }
 
       btnInstall.setAttribute("manifest", manifestUrl);
@@ -880,22 +933,14 @@
         }
       }
 
-      let hasRoleConfig = false;
-      if (currentRole === "detector") {
-        hasRoleConfig = getDetDeviceId() !== null;
-      } else if (currentRole === "gateway") {
-        hasRoleConfig = getGwConfig() !== null || gwRelay.checked;
-      } else if (currentRole === "relay") {
-        hasRoleConfig = true;
-      } else if (currentRole === "wired_detector") {
-        hasRoleConfig = getWdDeviceId() !== null || getWiredConfig() !== null;
-      }
+      if (currentRole === "node") syncCapUi();
 
-      // The AES network key is irrelevant for the Wired Detector role; only
-      // role-specific config can trigger a patched NVS image there.
-      const keyApplies = (currentRole !== "wired_detector");
+      // LoRa nodes are always patched (node_cfg caps). The wired detector is
+      // only patched when one of its own fields is filled in; it has no AES key.
+      const hasWiredConfig = currentRole === "wired_detector" &&
+        (getWdDeviceId() !== null || getWiredConfig() !== null);
 
-      if ((!hasKey || !keyApplies) && !hasRoleConfig) {
+      if (currentRole === "wired_detector" && !hasWiredConfig) {
         keyStatus.className = "key-status default-key";
         keyStatus.querySelector("span").textContent =
           "No configuration entered \u2014 firmware will use compile-time defaults.";
@@ -911,11 +956,13 @@
       updateTimer = setTimeout(async () => {
         if (!await updateManifests()) return;
         const parts = [];
-        if (hasKey && keyApplies) parts.push("custom key");
-        if (currentRole === "detector" && getDetDeviceId() !== null) parts.push(`device ID ${getDetDeviceId()}`);
-        if (currentRole === "gateway" && getGwConfig()) parts.push("Wi-Fi/MQTT config");
-        if (currentRole === "relay" || (currentRole === "gateway" && gwRelay.checked)) parts.push("relay on");
-        if (currentRole === "wired_detector") {
+        if (currentRole === "node") {
+          const c = readCaps();
+          parts.push(nodeLabel(c).toLowerCase() + " role");
+          parts.push(hasKey ? "custom key" : "default key");
+          if (c.mic && getDetDeviceId() !== null) parts.push(`device ID ${getDetDeviceId()}`);
+          if (c.bridge && getGwConfig()) parts.push("Wi-Fi/MQTT config");
+        } else {
           if (getWdDeviceId() !== null) parts.push(`device ID ${getWdDeviceId()}`);
           if (getWiredConfig()) parts.push("MQTT" + (staticIpEnable.checked ? " + static IP" : "") + " config");
         }
@@ -940,11 +987,11 @@
     });
 
     select.addEventListener("change", () => validateAndUpdate());
-    gwRelay.addEventListener("change", validateAndUpdate);
     boardSelect.addEventListener("change", () => updateManifests());
 
-    /* ---- Initial setup ---- */
-    updateManifests();
+    /* ---- Initial setup: Detector preset ---- */
+    capMic.checked = true;
+    validateAndUpdate();
 
     fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`)
       .then(r => r.json())

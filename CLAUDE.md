@@ -43,7 +43,7 @@ idf.py -B build_wired_detector -DSDKCONFIG=build_wired_detector/sdkconfig -p POR
 | `sdkconfig.defaults` | Common ESP-IDF settings (CPU freq, logging, stack) |
 | `sdkconfig.detector` | LoRa node, detector preset (mic on, rx off). Board, flash size, device ID, network config |
 | `sdkconfig.gateway` | LoRa node, gateway preset (mic off, rx on, bridge auto). Board, flash size, network config |
-| `sdkconfig.node_v3` / `sdkconfig.node_v4` | LoRa node, all caps `auto` — what CI builds and releases (`merged_node_v3/v4.bin`). The flasher's Detector / Gateway tabs flash this image and write `node_cfg` caps to NVS |
+| `sdkconfig.node_v3` / `sdkconfig.node_v4` | LoRa node, all caps `auto` — what CI builds and releases (`merged_node_v3/v4.bin`). The flasher's LoRa Node tab flashes this image and writes the ticked `node_cfg` caps to NVS (v2.x releases: detector or gateway image, relay / mixed roles blocked) |
 | `partitions_lora.csv` | LoRa node partition table: 3 MiB factory app (the combined image is >1 MiB) |
 | `sdkconfig.wired_detector` | Board, flash size, role, MQTT config (Ethernet) |
 

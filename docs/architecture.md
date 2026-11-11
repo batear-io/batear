@@ -31,7 +31,7 @@ firmware; its role comes from capabilities set at flash time.
 Packets: AES-128-GCM, 38 bytes.
 ```
 
-All LoRa boxes run the **same LoRa node firmware**. What a node does is decided at boot from four capabilities in NVS (`node_cfg`), which the web flasher's Detector / Gateway / Relay tabs set for you:
+All LoRa boxes run the **same LoRa node firmware**. What a node does is decided at boot from four capabilities in NVS (`node_cfg`), which the web flasher's **LoRa Node** tab sets from the checkboxes you tick (or its Detector / Gateway / Relay presets):
 
 | Capability | Detector | Relay | Gateway |
 |:---|:---:|:---:|:---:|
