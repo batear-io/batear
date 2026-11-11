@@ -8,7 +8,7 @@ Batear supports two deployment models: **wireless** (LoRa detectors + gateway) a
 ┌──────────────────────┐        LoRa 915 MHz          ┌──────────────────────┐
 │    DETECTOR (×N)     │ ───────────────────────────► │     GATEWAY (×1)     │
 │                      │  AES-128-GCM encrypted       │                      │
-│  ICS-43434 mic       │  36-byte packets             │  SSD1306 OLED display│
+│  ICS-43434 mic       │  38-byte packets             │  SSD1306 OLED display│
 │  FFT harmonic detect │  alarm / clear / heartbeat   │  LED alarm indicator │
 │  Battery monitor     │                              │  SX1262 LoRa RX      │
 │  SX1262 LoRa TX      │                              │  WiFi + MQTT TX      │

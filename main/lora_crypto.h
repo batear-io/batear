@@ -3,8 +3,19 @@
  *
  * Uses PSA Crypto API (mbedtls 4.x / ESP-IDF 6.x).
  *
- * Packet wire format (36 bytes total):
- *   [4B nonce] [32B AEAD output = 16B ciphertext + 16B GCM tag]
+ * Packet wire format v2 (38 bytes total):
+ *   [6B cleartext header] [32B AEAD output = 16B ciphertext + 16B GCM tag]
+ *
+ * Header:
+ *   [1B ver_ttl]   // high nibble = frame version (2), low nibble = mesh TTL
+ *   [1B orig_id]   // originating node's device_id
+ *   [2B boot_id]   // per-node boot counter, persisted in NVS, LE
+ *   [2B seq]       // per-boot packet counter, LE
+ *
+ * (orig_id, boot_id, seq) is unique per packet. It forms the 12-byte GCM IV,
+ * the receiver's replay key and the mesh dedup key. The header is
+ * authenticated as AAD with the TTL nibble masked out, so relays can
+ * decrement TTL without invalidating the tag.
  *
  * Plaintext (16 bytes):
  *   [2B seq] [1B device_id] [1B event_type] [1B f0_bin] [1B rms_db]
@@ -33,12 +44,17 @@
 extern "C" {
 #endif
 
+#define LORA_FRAME_VERSION   2
+#define LORA_HEADER_LEN      6
 #define LORA_PLAINTEXT_LEN   16
-#define LORA_NONCE_LEN       4
 #define LORA_GCM_TAG_LEN    16
 #define LORA_AEAD_OUT_LEN   (LORA_PLAINTEXT_LEN + LORA_GCM_TAG_LEN)
-#define LORA_PACKET_LEN     (LORA_NONCE_LEN + LORA_AEAD_OUT_LEN)
+#define LORA_PACKET_LEN     (LORA_HEADER_LEN + LORA_AEAD_OUT_LEN)
+#define LORA_PACKET_LEN_V1  36   /* pre-v3.0 frame, rejected with a hint */
 #define LORA_GCM_IV_LEN     12
+
+#define LORA_TTL_DEFAULT     3
+#define LORA_TTL_MASK        0x0F
 
 #define LORA_EVENT_CLEAR      0x00
 #define LORA_EVENT_ALARM      0x01
@@ -70,32 +86,66 @@ typedef struct __attribute__((packed)) {
 _Static_assert(sizeof(lora_plaintext_t) == LORA_PLAINTEXT_LEN, "plaintext size mismatch");
 
 typedef struct __attribute__((packed)) {
-    uint8_t nonce[LORA_NONCE_LEN];
+    uint8_t  ver_ttl;
+    uint8_t  orig_id;
+    uint16_t boot_id;
+    uint16_t seq;
+} lora_header_t;
+
+_Static_assert(sizeof(lora_header_t) == LORA_HEADER_LEN, "header size mismatch");
+
+typedef struct __attribute__((packed)) {
+    lora_header_t hdr;
     uint8_t aead[LORA_AEAD_OUT_LEN];
 } lora_packet_t;
 
 _Static_assert(sizeof(lora_packet_t) == LORA_PACKET_LEN, "packet size mismatch");
 
-static inline void lora_build_iv(const uint8_t key[16],
-                                 const uint8_t nonce[LORA_NONCE_LEN],
-                                 uint8_t iv_out[LORA_GCM_IV_LEN])
+static inline uint8_t lora_hdr_version(const lora_header_t *h) { return h->ver_ttl >> 4; }
+static inline uint8_t lora_hdr_ttl(const lora_header_t *h)     { return h->ver_ttl & LORA_TTL_MASK; }
+
+static inline void lora_hdr_init(lora_header_t *h, uint8_t orig_id,
+                                 uint16_t boot_id, uint16_t seq, uint8_t ttl)
 {
-    memcpy(iv_out, key, 8);
-    memcpy(iv_out + 8, nonce, LORA_NONCE_LEN);
+    h->ver_ttl = (uint8_t)((LORA_FRAME_VERSION << 4) | (ttl & LORA_TTL_MASK));
+    h->orig_id = orig_id;
+    h->boot_id = boot_id;
+    h->seq     = seq;
+}
+
+/* IV = [ver][orig_id][boot_id LE][seq LE][6B zero]; unique per packet as long
+ * as boot_id never repeats for a given orig_id under the same key. */
+static inline void lora_build_iv(const lora_header_t *h, uint8_t iv_out[LORA_GCM_IV_LEN])
+{
+    memset(iv_out, 0, LORA_GCM_IV_LEN);
+    iv_out[0] = LORA_FRAME_VERSION;
+    iv_out[1] = h->orig_id;
+    memcpy(iv_out + 2, &h->boot_id, 2);
+    memcpy(iv_out + 4, &h->seq, 2);
+}
+
+/* AAD = header with the TTL nibble cleared (relays rewrite TTL in flight). */
+static inline void lora_build_aad(const lora_header_t *h, uint8_t aad_out[LORA_HEADER_LEN])
+{
+    lora_header_t a = *h;
+    a.ver_ttl &= (uint8_t)~LORA_TTL_MASK;
+    memcpy(aad_out, &a, LORA_HEADER_LEN);
 }
 
 static inline bool lora_encrypt(const uint8_t key[16],
-                                uint32_t counter,
+                                const lora_header_t *hdr,
                                 const lora_plaintext_t *pt,
                                 lora_packet_t *pkt)
 {
     psa_status_t status = psa_crypto_init();
     if (status != PSA_SUCCESS) return false;
 
-    memcpy(pkt->nonce, &counter, LORA_NONCE_LEN);
+    pkt->hdr = *hdr;
 
     uint8_t iv[LORA_GCM_IV_LEN];
-    lora_build_iv(key, pkt->nonce, iv);
+    uint8_t aad[LORA_HEADER_LEN];
+    lora_build_iv(hdr, iv);
+    lora_build_aad(hdr, aad);
 
     psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
     psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_ENCRYPT);
@@ -112,7 +162,7 @@ static inline bool lora_encrypt(const uint8_t key[16],
     const uint8_t *pt_bytes = (const uint8_t *)pt;
     status = psa_aead_encrypt(kid, PSA_ALG_GCM,
                                iv, LORA_GCM_IV_LEN,
-                               NULL, 0,
+                               aad, LORA_HEADER_LEN,
                                pt_bytes, LORA_PLAINTEXT_LEN,
                                pkt->aead, LORA_AEAD_OUT_LEN,
                                &out_len);
@@ -127,8 +177,12 @@ static inline bool lora_decrypt(const uint8_t key[16],
     psa_status_t status = psa_crypto_init();
     if (status != PSA_SUCCESS) return false;
 
+    if (lora_hdr_version(&pkt->hdr) != LORA_FRAME_VERSION) return false;
+
     uint8_t iv[LORA_GCM_IV_LEN];
-    lora_build_iv(key, pkt->nonce, iv);
+    uint8_t aad[LORA_HEADER_LEN];
+    lora_build_iv(&pkt->hdr, iv);
+    lora_build_aad(&pkt->hdr, aad);
 
     psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
     psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_DECRYPT);
@@ -145,12 +199,15 @@ static inline bool lora_decrypt(const uint8_t key[16],
     uint8_t *pt_out_bytes = (uint8_t *)pt_out;
     status = psa_aead_decrypt(kid, PSA_ALG_GCM,
                                iv, LORA_GCM_IV_LEN,
-                               NULL, 0,
+                               aad, LORA_HEADER_LEN,
                                pkt->aead, LORA_AEAD_OUT_LEN,
                                pt_out_bytes, LORA_PLAINTEXT_LEN,
                                &out_len);
     psa_destroy_key(kid);
-    return status == PSA_SUCCESS;
+    if (status != PSA_SUCCESS) return false;
+
+    /* The plaintext repeats orig_id/seq; they must match the authenticated header. */
+    return pt_out->device_id == pkt->hdr.orig_id && pt_out->seq == pkt->hdr.seq;
 }
 
 static inline uint8_t lora_vbat_encode(uint32_t mv)
