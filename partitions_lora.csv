@@ -6,3 +6,6 @@
 nvs,      data, nvs,     0x9000,  0x6000
 phy_init, data, phy,     0xf000,  0x1000
 factory,  app,  factory, 0x10000, 0x300000
+# Frame boot counter (lora_provision.c). Kept after the app so flashing a
+# merged image never overwrites it; only a full chip erase resets it.
+bootctr,  data, nvs,     0x310000, 0x3000

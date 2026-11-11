@@ -12,7 +12,7 @@ Frame v2 (firmware v3.0+): AES-128-GCM encrypted, **38 bytes on the wire**:
 |:---|:---|:---|:---|
 | 0 | 1 | `ver_ttl` | High nibble = frame version (`2`), low nibble = mesh TTL (default `3`) |
 | 1 | 1 | `orig_id` | Originating node's `device_id` |
-| 2 | 2 | `boot_id` | Per-node boot counter, little-endian. Persisted in NVS (`lora_cfg` → `boot_id`), incremented every boot and whenever `seq` would wrap |
+| 2 | 2 | `boot_id` | Per-node boot counter, little-endian. Persisted in its own NVS partition (`bootctr`, after the app, so reflashing doesn't reset it), incremented every boot and whenever `seq` would wrap |
 | 4 | 2 | `seq` | Per-boot packet counter, little-endian, starts at 0 |
 
 `(orig_id, boot_id, seq)` is unique for every packet a network key ever encrypts. It is used three ways:
@@ -65,7 +65,7 @@ The gateway is a passive receiver. There is no PHY-level acknowledgement:
 - Adding ACKs would triple the network's airtime (detector TX → gateway TX ACK → detector RX window), block the gateway from hearing other nodes during its TX burst, and scale poorly past a handful of detectors.
 - Instead, **idempotency and reliability come from the `(boot_id, seq)` counter**: the gateway tracks the last pair per detector and accepts a packet only if its `boot_id` is newer (16-bit serial-number arithmetic) or the `boot_id` matches and `seq` is higher. Retried packets that arrive twice are dedup'd, and a rebooted detector is accepted immediately because its `boot_id` advanced. A permanently lost packet is covered by the next state transition (for alarm/clear) or the next heartbeat (for telemetry).
 
-If a detector's NVS is erased, its `boot_id` restarts from a random value. The gateway may then treat it as older and reject it until the gateway is rebooted; the gateway logs `REPLAY ... (last boot=... seq=...)` when this happens.
+If a detector's flash is fully erased (e.g. the web flasher's "Erase device" option), its `boot_id` restarts from a random value. A normal reflash does not reset it. The gateway may then treat it as older and reject it until the gateway is rebooted; the gateway logs `REPLAY ... (last boot=... seq=...)` when this happens.
 
 ## Airtime budget
 
