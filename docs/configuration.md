@@ -285,17 +285,25 @@ This lets you set defaults at compile time and override per-device via the [seri
 
 ### MQTT Topics
 
-Both the gateway and the wired detector use the same topic structure:
-
 | Topic | QoS | Retained | Description |
 |:---|:---|:---|:---|
-| `batear/nodes/<id>/status` | 1 | No | Gateway- or wired-detector-wide event stream (JSON). `<id>` is the gateway's or wired detector's own `device_id`. |
-| `batear/nodes/<id>/det/<XX>/status` | 1 | Yes | Per-detector events (gateway only, `XX` = hex detector ID). Retained so HA picks up the last known state on reconnect. |
-| `batear/nodes/<id>/availability` | 1 | Yes | `online` / `offline` (LWT) |
+| `batear/det/<XX>/state` | 1 | Yes | LoRa detector drone state, `XX` = hex detector ID: `{"state":"ON"\|"OFF","boot":…,"seq":…,"bridge":"gw01"}`. Published **only on ALARM/CLEAR**, by whichever bridge hears it first. |
+| `batear/det/<XX>/status` | 1 | Yes | LoRa detector telemetry (JSON below) on every packet, from any bridge. |
+| `batear/nodes/<id>/status` | 1 | No | Bridge- or wired-detector-wide event stream (JSON). `<id>` is the bridge's or wired detector's own `device_id`. Bridges add `mesh_relayed`, `mesh_dups`, `mesh_suppressed`, `mesh_rate_limited`. |
+| `batear/nodes/<id>/availability` | 1 | Yes | `online` / `offline` for that bridge or wired detector (LWT) |
+
+#### Several bridges
+
+Any number of bridges can hear the same detector. The per-detector topics and HA discovery don't depend on the bridge, so HA sees one device per detector whichever bridge delivered the packet, and losing a bridge is invisible as long as another one hears the detector.
+
+- The drone state lives on its own topic, updated only by ALARM/CLEAR. A bridge that missed an alarm can't reset it with a heartbeat.
+- Every bridge subscribes to `batear/det/+/state` and won't publish a state whose `(boot, seq)` is older than the retained one, so a bridge that hears an event late (e.g. via a relay) can't override a newer one.
+- Telemetry (`status`) is last-writer-wins; `bridge` says which bridge sent it.
+- If a detector's flash is fully erased its `boot` restarts at a random value, and bridges may treat its next ALARM/CLEAR as older than the retained state. Delete the retained `batear/det/<XX>/state` message to reset it.
 
 ### Status Payload (JSON)
 
-**Gateway** (relayed from LoRa detector). Every published event — `alarm`, `clear`, or `heartbeat` — carries the same schema. Telemetry fields are piggybacked on alarm/clear events at no extra airtime.
+**LoRa detector** (`batear/det/<XX>/status`, published by a bridge). Every published event — `alarm`, `clear`, or `heartbeat` — carries the same schema. Telemetry fields are piggybacked on alarm/clear events at no extra airtime.
 
 ```json
 {
@@ -306,6 +314,7 @@ Both the gateway and the wired detector use the same topic structure:
   "snr": 5.2,
   "rms_db": 45,
   "f0_bin": 12,
+  "boot": 51234,
   "seq": 42,
   "battery_v": 3.82,
   "fw_version": "2.0.0",
@@ -313,21 +322,23 @@ Both the gateway and the wired detector use the same topic structure:
   "free_heap_kb": 187,
   "tx_fails": 0,
   "flags": 0,
+  "bridge": "gw01",
   "timestamp": 1234567
 }
 ```
 
 | Field | Description |
 |:---|:---|
-| `drone_detected` | `true` for ALARM, `false` otherwise. Heartbeats preserve the last known alarm state, so a detector that armed an alarm and then silently sends heartbeats keeps `drone_detected: true` until a CLEAR event arrives. |
+| `drone_detected` | This bridge's view: `true` after ALARM until CLEAR. Informational — the HA drone entity reads `batear/det/<XX>/state` instead, since a bridge that missed an event has a stale view. |
 | `event` | `"alarm"`, `"clear"`, or `"heartbeat"` — the raw packet type. |
-| `rssi` / `snr` | Received-signal quality at the gateway for this specific packet (dBm / dB). |
+| `rssi` / `snr` | Received-signal quality at the publishing bridge for this packet (dBm / dB; `0` if the bridge originated it). |
 | `rms_db` / `f0_bin` | Acoustic signature fields; zero on heartbeat. |
-| `seq` | Monotonic packet counter per detector. |
+| `boot` / `seq` | Detector boot counter and per-boot packet counter; together they order events. |
+| `bridge` | `device_id` of the bridge that published this message. |
 | `battery_v` | Detector battery voltage decoded from `vbat_cv` (0.01 V resolution). |
 | `fw_version` | Detector firmware version parsed from its `esp_app_desc` git tag. |
 | `uptime_min` / `free_heap_kb` / `tx_fails` / `flags` | Detector health metrics. See [LoRa Protocol](protocol.md) for the full field map. |
-| `timestamp` | Gateway wall-clock seconds when the event was published. |
+| `timestamp` | Bridge uptime in seconds when the event was published. |
 
 **Wired detector** (published directly):
 
@@ -348,9 +359,9 @@ Both the gateway and the wired detector use the same topic structure:
 
 ### Home Assistant Discovery
 
-Both the gateway and wired detector publish retained HA MQTT Discovery config messages. The gateway publishes in two layers:
+Both bridges and the wired detector publish retained HA MQTT Discovery config messages. A bridge publishes in two layers:
 
-**Gateway-wide (at MQTT connect)** — for backwards compatibility with earlier setups:
+**Bridge-wide (at MQTT connect)** — one device per bridge, for its own diagnostics:
 
 | Entity | Discovery topic | Type |
 |:---|:---|:---|
@@ -358,20 +369,26 @@ Both the gateway and wired detector publish retained HA MQTT Discovery config me
 | RSSI | `homeassistant/sensor/batear_<gw>/rssi/config` | `sensor` (`signal_strength`, dBm) |
 | SNR | `homeassistant/sensor/batear_<gw>/snr/config` | `sensor` (dB) |
 
-**Per-detector (lazy, on first packet from each detector ID)** — each detector appears as a distinct HA device (`batear_<gw>_det_<XX>`) linked back to the gateway via `via_device`:
+**Per-detector (lazy, on first packet from each detector ID)** — one HA device per detector (`batear_det_<XX>`), the same whichever bridge publishes it. Discovery payloads are byte-identical across bridges (no bridge ID, no `via_device`):
 
-| Entity | Topic suffix | HA device class / unit |
-|:---|:---|:---|
-| Drone Detected | `.../drone/config` | `binary_sensor` (`safety`) |
-| Battery | `.../battery_v/config` | `voltage`, V |
-| Firmware Version | `.../fw_version/config` | diagnostic string |
-| Uptime | `.../uptime_min/config` | `duration`, min |
-| Free Heap | `.../free_heap_kb/config` | kB, measurement |
-| TX Failures | `.../tx_fails/config` | total_increasing |
-| RSSI | `.../rssi/config` | `signal_strength`, dBm |
-| SNR | `.../snr/config` | dB, measurement |
+| Entity | Discovery topic | State topic | HA device class / unit |
+|:---|:---|:---|:---|
+| Drone Detected | `homeassistant/binary_sensor/batear_det_<XX>/drone/config` | `.../state` | `safety`; never expires |
+| Online | `homeassistant/binary_sensor/batear_det_<XX>/online/config` | `.../status` | `connectivity`, diagnostic |
+| Battery | `homeassistant/sensor/batear_det_<XX>/battery_v/config` | `.../status` | `voltage`, V |
+| Firmware Version | `.../fw_version/config` | `.../status` | diagnostic string |
+| Uptime | `.../uptime_min/config` | `.../status` | `duration`, min |
+| Free Heap | `.../free_heap_kb/config` | `.../status` | kB, measurement |
+| TX Failures | `.../tx_fails/config` | `.../status` | total_increasing |
+| RSSI | `.../rssi/config` | `.../status` | `signal_strength`, dBm |
+| SNR | `.../snr/config` | `.../status` | dB, measurement |
 
-On MQTT reconnect, the gateway clears its internal "already discovered" cache and republishes the per-detector configs, so a broker that purged retained messages (or a freshly started HA) recovers automatically.
+"Online" and the telemetry sensors use `expire_after` = `BATEAR_DET_OFFLINE_MIN` (default 75 min), so they go unavailable when no bridge has heard the detector for that long. Keep it above the detectors' heartbeat interval, and the same on every bridge.
+
+On MQTT reconnect, a bridge republishes the per-detector configs, so a broker that purged retained messages (or a freshly started HA) recovers automatically.
+
+!!! warning "Upgrading from v2.x"
+    Detector entities used to be per gateway (`batear_<gw>_det_<XX>_*`). A v3.0 bridge clears those discovery configs when it first hears each detector, so HA removes the old entities and creates new `batear_det_<XX>_*` ones. Entity IDs change and history doesn't carry over — update automations and dashboards that reference the old entities.
 
 **Wired detector entities:**
 

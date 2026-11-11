@@ -247,6 +247,19 @@ menu "MQTT / Home Assistant"
         help
             MQTT broker password. Overridden by NVS → "mqtt_pass".
 
+    config BATEAR_DET_OFFLINE_MIN
+        int "Mark a detector offline after N minutes without a packet"
+        default 75
+        range 5 1440
+        depends on BATEAR_LORA_NODE
+        help
+            Home Assistant expire_after for a detector's telemetry sensors
+            and its "Online" connectivity sensor. Must exceed the detectors'
+            heartbeat interval (BATEAR_TELEMETRY_HEARTBEAT_MIN, +10% jitter);
+            the default leaves room for two missed heartbeats at 30 min.
+            Must be the same on every bridge, since discovery payloads
+            have to be byte-identical across bridges.
+
     config BATEAR_GW_DEVICE_ID
         string "Gateway device ID (for MQTT topics)"
         default "gw01"
