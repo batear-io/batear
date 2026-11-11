@@ -23,6 +23,7 @@ typedef struct {
     float    snr;
     uint8_t  rms_db;
     uint8_t  f0_bin;
+    uint16_t boot_id;         /* (boot_id, seq) orders events across bridges */
     uint16_t seq;
 
     /* Telemetry piggybacked on every packet. */

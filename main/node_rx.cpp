@@ -167,6 +167,7 @@ static void deliver(const lora_header_t *hdr, const lora_plaintext_t *pt,
         mev.snr           = snr;
         mev.rms_db        = pt->rms_db;
         mev.f0_bin        = pt->f0_bin;
+        mev.boot_id       = hdr->boot_id;
         mev.seq           = pt->seq;
         mev.vbat_mv       = dev->last_vbat_mv;
         mev.fw_major      = pt->fw_major;
