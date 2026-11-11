@@ -16,8 +16,8 @@
 
 | Board | Chip | `set-target` | Flash | Roles |
 |:---|:---|:---|:---|:---|
-| Heltec WiFi LoRa 32 V3 | ESP32-S3 | `esp32s3` | 8 MB | Detector, Gateway |
-| Heltec WiFi LoRa 32 V4 | ESP32-S3 | `esp32s3` | 16 MB | Detector, Gateway |
+| Heltec WiFi LoRa 32 V3 | ESP32-S3 | `esp32s3` | 8 MB | Detector, Relay, Gateway |
+| Heltec WiFi LoRa 32 V4 | ESP32-S3 | `esp32s3` | 16 MB | Detector, Relay, Gateway |
 | LILYGO T-ETH-Lite S3 | ESP32-S3 | `esp32s3` | 16 MB | Wired Detector |
 
 ## Next Steps

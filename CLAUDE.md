@@ -2,7 +2,7 @@
 
 ESP32-S3 acoustic drone detection with encrypted LoRa alerting or direct Ethernet/MQTT. ESP-IDF 6.x.
 
-Same codebase builds as a **LoRa node** or a **Wired Detector** via sdkconfig files. Detector and gateway are presets of the same LoRa node image; what a node does (mic / rx / bridge) is resolved at boot from NVS `node_cfg` (see `main/node_caps.h`).
+Same codebase builds as a **LoRa node** or a **Wired Detector** via sdkconfig files. Detector and gateway are presets of the same LoRa node image; what a node does (mic / rx / bridge / relay) is resolved at boot from NVS `node_cfg` (see `main/node_caps.h`).
 
 ## Board → Target
 

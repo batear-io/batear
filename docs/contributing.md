@@ -11,7 +11,7 @@ If you have a micro drone, a soldering iron, and some free time, we would love y
 - Real-world threshold calibration per drone type
 - Noise filtering improvements
 - ML-based detection (ESP-NN / TFLite Micro)
-- Multi-gateway mesh networking
+- Real-world mesh testing (relay placement, multi-gateway setups)
 - Battery/solar power optimizations
 
 ## Getting Started

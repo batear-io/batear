@@ -28,12 +28,14 @@ The ESP32-S3's SIMD instructions keep the full FFT + harmonic scan well under 10
 
 When a drone signature is confirmed, the detector sends an alert. The path depends on the deployment model:
 
-- **LoRa Detector** — An **AES-128-GCM encrypted** alert is transmitted over LoRa to the gateway. See the [LoRa Protocol](protocol.md) page for packet format details.
+- **LoRa Detector** — An **AES-128-GCM encrypted** alert is transmitted over LoRa. Any gateway in range receives it directly; relays forward it to gateways further away (up to 3 hops). See the [LoRa Protocol](protocol.md) page for the frame format and mesh relay.
 - **Wired Detector** — The `DroneEvent_t` is published directly as JSON to the MQTT broker over Ethernet. No encryption overhead is needed since the network is wired.
 
 ## Gateway → Home Assistant
 
-The gateway decrypts the LoRa packet and pushes a `MqttEvent_t` into a FreeRTOS queue. On a separate core, MqttTask picks up the event and publishes a JSON payload over MQTT to the broker.
+A gateway drops copies of packets it already accepted (heard directly and via a relay), decrypts the rest, checks they're newer than the last packet from that detector, and pushes a `MqttEvent_t` into a FreeRTOS queue. On a separate core, MqttTask publishes it to `batear/det/<XX>/status` (telemetry) and, for alarm/clear, `batear/det/<XX>/state`.
+
+These topics don't depend on which gateway heard the packet, so several gateways can run side by side: Home Assistant sees one device per detector, and a gateway never overwrites a newer state with an event it heard late. See [Configuration → MQTT Topics](configuration.md#mqtt-topics).
 
 ## Wired Detector → Home Assistant
 
