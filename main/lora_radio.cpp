@@ -443,9 +443,13 @@ static void receive_frame(int &rx_errors)
     mesh_record(&key);
 
     /* Relay: other nodes' fresh, authenticated packets with TTL left. TTL is
-     * outside the GCM AAD, so rewriting it keeps the tag valid. */
+     * outside the GCM AAD, so rewriting it keeps the tag valid. Only a node
+     * that transmits its own packets (mic) can be their originator; a relay
+     * without a mic still has a device_id (default 1) that a detector may
+     * share, and must forward that detector's packets. */
     uint8_t ttl = lora_hdr_ttl(hdr);
-    if (!s_relay_enabled || ttl == 0 || key.orig_id == lora_get_keys()->device_id) {
+    const bool own = s_tx_enabled && key.orig_id == lora_get_keys()->device_id;
+    if (!s_relay_enabled || ttl == 0 || own) {
         return;
     }
     buf[0] = (uint8_t)((buf[0] & ~LORA_TTL_MASK) | (ttl - 1));
