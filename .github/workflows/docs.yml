@@ -46,13 +46,17 @@ jobs:
               if any(a['name'].startswith('merged_') for a in r['assets']):
                   print(r['tag_name'])
           "); do
-            mkdir -p "docs/flasher/firmware/$release"
-            curl -sL "https://github.com/${{ github.repository }}/releases/download/$release/merged_detector.bin" \
-              -o "docs/flasher/firmware/$release/merged_detector.bin" || true
-            curl -sL "https://github.com/${{ github.repository }}/releases/download/$release/merged_gateway.bin" \
-              -o "docs/flasher/firmware/$release/merged_gateway.bin" || true
-            curl -sL "https://github.com/${{ github.repository }}/releases/download/$release/merged_wired_detector.bin" \
-              -o "docs/flasher/firmware/$release/merged_wired_detector.bin" || true
+            dir="docs/flasher/firmware/$release"
+            base="https://github.com/${{ github.repository }}/releases/download/$release"
+            mkdir -p "$dir"
+            for f in merged_detector_v3 merged_detector_v4 merged_gateway_v3 merged_gateway_v4 merged_wired_detector; do
+              curl -sfL "$base/$f.bin" -o "$dir/$f.bin" || rm -f "$dir/$f.bin"
+            done
+            # Releases before the V3/V4 split shipped unsuffixed V3 builds.
+            for role in detector gateway; do
+              [ -f "$dir/merged_${role}_v3.bin" ] || \
+                curl -sfL "$base/merged_${role}.bin" -o "$dir/merged_${role}_v3.bin" || rm -f "$dir/merged_${role}_v3.bin"
+            done
           done
 
       - name: Build site
