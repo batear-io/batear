@@ -7,7 +7,7 @@ else()
     set(W5500_COMPONENT "")
 endif()
 
-set(SRCS "main.cpp" "lorawan_provision.c" "config_console.c")
+set(SRCS "main.cpp" "lora_provision.c" "config_console.c")
 
 # LoRa node: one image, capabilities (mic / rx / bridge) chosen at runtime
 if(CONFIG_BATEAR_LORA_NODE)

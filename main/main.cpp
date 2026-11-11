@@ -22,7 +22,7 @@
 #include "nvs_flash.h"
 #include "sdkconfig.h"
 
-#include "lorawan_provision.h"
+#include "lora_provision.h"
 #include "config_console.h"
 
 #ifdef CONFIG_BATEAR_LORA_NODE
@@ -60,14 +60,14 @@ extern "C" void app_main(void)
         }
     }
 
-    lorawan_provision_init();
-    lorawan_log_keys(TAG);
+    lora_provision_init();
+    lora_log_keys(TAG);
 
     config_console_init();
 
 #ifdef CONFIG_BATEAR_LORA_NODE
 
-    ESP_LOGI(TAG, "Batear LoRa NODE (dev_id=%u)", lorawan_get_keys()->device_id);
+    ESP_LOGI(TAG, "Batear LoRa NODE (dev_id=%u)", lora_get_keys()->device_id);
 
     node_caps_init();
     const node_caps_t *caps = node_caps();
@@ -124,7 +124,7 @@ extern "C" void app_main(void)
 
 #elif defined(CONFIG_BATEAR_ROLE_WIRED_DETECTOR)
 
-    ESP_LOGI(TAG, "Batear WIRED DETECTOR (dev_id=%u)", lorawan_get_keys()->device_id);
+    ESP_LOGI(TAG, "Batear WIRED DETECTOR (dev_id=%u)", lora_get_keys()->device_id);
 
     /* Confirm OTA rollback — if this boot is after an OTA update, mark the
        firmware valid so the bootloader won't roll back on next reboot. */

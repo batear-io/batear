@@ -15,7 +15,7 @@
 #include "http_api.h"
 #include "drone_detector.h"
 #include "pin_config.h"
-#include "lorawan_provision.h"
+#include "lora_provision.h"
 #include "sdkconfig.h"
 
 #if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
@@ -579,7 +579,7 @@ extern "C" void EthMqttTask(void *pvParameters)
             }
 
             int64_t ts = esp_timer_get_time() / 1000000LL;
-            uint8_t det_id = lorawan_get_keys()->device_id;
+            uint8_t det_id = lora_get_keys()->device_id;
 
             HttpDroneStatus_t hst = {
                 .drone_detected = (ev.type == DRONE_EVENT_ALARM),

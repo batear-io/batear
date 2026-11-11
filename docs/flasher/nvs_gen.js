@@ -7,6 +7,9 @@
  *     blob "app_key"   (16 bytes)
  *     u8   "device_id" (1 byte, detector only)
  *
+ *   namespace "node_cfg"  (LoRa node capabilities, optional)
+ *     u8   "cap_mic" / "cap_rx" / "cap_bridge"   (0 = off, 1 = on, 2 = auto)
+ *
  *   namespace "gateway_cfg"  (gateway only)
  *     str  "wifi_ssid"
  *     str  "wifi_pass"
@@ -187,6 +190,29 @@ function writeU8Entry(page, entryIdx, nsIdx, key, value) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Namespace definition + LoRa node capability entries                */
+/* ------------------------------------------------------------------ */
+
+const NS_NODE_CFG = 3;
+
+function writeNamespaceEntry(page, entryIdx, name, nsIdx) {
+  const off = writeEntryHeader(page, entryIdx, 0, TYPE_U8, 1, 0xFF, name);
+  page[off + 24] = nsIdx;
+  writeU32(page, off + 4, entryItemCrc(page, off));
+  setEntryState(page.subarray(HEADER_SIZE, HEADER_SIZE + BITMAP_SIZE), entryIdx, ES_WRITTEN);
+  return entryIdx + 1;
+}
+
+/** caps: { mic, rx, bridge } with values 0 = off, 1 = on, 2 = auto. */
+function writeNodeCaps(page, entryIdx, caps) {
+  let idx = writeNamespaceEntry(page, entryIdx, "node_cfg", NS_NODE_CFG);
+  idx = writeU8Entry(page, idx, NS_NODE_CFG, "cap_mic", caps.mic);
+  idx = writeU8Entry(page, idx, NS_NODE_CFG, "cap_rx", caps.rx);
+  idx = writeU8Entry(page, idx, NS_NODE_CFG, "cap_bridge", caps.bridge);
+  return idx;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Write a NVS string entry (TYPE_STR = 0x21)                         */
 /*  Stored as multi-span entry: header + ceil((len+1)/32) data spans.  */
 /*  No blob-index entry (strings use the legacy single-entry format).  */
@@ -231,9 +257,10 @@ function writeStringEntry(page, entryIdx, nsIdx, key, str) {
  * @param {Uint8Array} devEui     - 8-byte DevEUI
  * @param {Uint8Array} appKey     - 16-byte AppKey / network key
  * @param {number|null} deviceId  - Detector device ID (0-255), null to omit
+ * @param {Object|null} caps      - LoRa node caps {mic, rx, bridge}, null to omit
  * @returns {Uint8Array} 4096-byte NVS page image
  */
-export function generateNvsImage(devEui, appKey, deviceId = null) {
+export function generateNvsImage(devEui, appKey, deviceId = null, caps = null) {
   if (devEui.length !== 8)  throw new Error("dev_eui must be 8 bytes");
   if (appKey.length !== 16) throw new Error("app_key must be 16 bytes");
 
@@ -265,7 +292,11 @@ export function generateNvsImage(devEui, appKey, deviceId = null) {
 
   // --- Optional: device_id (U8) ---
   if (deviceId !== null && deviceId !== undefined) {
-    writeU8Entry(page, nextIdx, 1, "device_id", deviceId);
+    nextIdx = writeU8Entry(page, nextIdx, 1, "device_id", deviceId);
+  }
+
+  if (caps) {
+    writeNodeCaps(page, nextIdx, caps);
   }
 
   return page;
@@ -391,9 +422,10 @@ export function generateWiredNvsImage(deviceId, wiredCfg) {
  * @param {string}      gwCfg.mqttUser
  * @param {string}      gwCfg.mqttPass
  * @param {string}      gwCfg.deviceId
+ * @param {Object|null} caps     - LoRa node caps {mic, rx, bridge}, null to omit
  * @returns {Uint8Array} 8192-byte NVS image (2 pages)
  */
-export function generateGatewayNvsImage(devEui, appKey, gwCfg) {
+export function generateGatewayNvsImage(devEui, appKey, gwCfg, caps = null) {
   if (devEui.length !== 8)  throw new Error("dev_eui must be 8 bytes");
   if (appKey.length !== 16) throw new Error("app_key must be 16 bytes");
 
@@ -414,7 +446,10 @@ export function generateGatewayNvsImage(devEui, appKey, gwCfg) {
   setEntryState(p0.subarray(HEADER_SIZE, HEADER_SIZE + BITMAP_SIZE), 0, ES_WRITTEN);
 
   let idx = writeBlobEntries(p0, 1, 1, "dev_eui", devEui);
-  writeBlobEntries(p0, idx, 1, "app_key", appKey);
+  idx = writeBlobEntries(p0, idx, 1, "app_key", appKey);
+  if (caps) {
+    writeNodeCaps(p0, idx, caps);
+  }
 
   // ---- Page 1: gateway_cfg ----
   const p1 = image.subarray(NVS_PAGE_SIZE, NVS_PAGE_SIZE * 2);

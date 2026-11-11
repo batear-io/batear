@@ -1,8 +1,8 @@
 /*
- * lorawan_provision.c — NVS-backed LoRa key provisioning
+ * lora_provision.c — NVS-backed LoRa key provisioning
  */
 
-#include "lorawan_provision.h"
+#include "lora_provision.h"
 #include "pin_config.h"
 
 #include "nvs_flash.h"
@@ -16,13 +16,13 @@ static const char *TAG = "provision";
 
 #define NVS_NAMESPACE   "lora_cfg"
 #define NVS_KEY_DEV_EUI   "dev_eui"
-#define NVS_KEY_APP_KEY   "app_key"
+#define NVS_KEY_NET_KEY   "app_key"   /* historical NVS key name, kept for compatibility */
 #define NVS_KEY_DEVICE_ID "device_id"
 #define NVS_KEY_LORA_FREQ "lora_freq"
 #define NVS_KEY_SYNC_WORD "sync_word"
 #define NVS_KEY_BOOT_ID   "boot_id"
 
-static lorawan_keys_t s_keys;
+static lora_keys_t s_keys;
 static bool s_initialised;
 
 /* Expand 6-byte MAC → 8-byte EUI-64 (insert 0xFFFE after OUI). */
@@ -33,7 +33,7 @@ static void mac_to_eui64(const uint8_t mac[6], uint8_t eui[8])
     eui[5] = mac[3]; eui[6] = mac[4]; eui[7] = mac[5];
 }
 
-esp_err_t lorawan_provision_init(void)
+esp_err_t lora_provision_init(void)
 {
     if (s_initialised) {
         return ESP_OK;
@@ -45,15 +45,15 @@ esp_err_t lorawan_provision_init(void)
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h);
     if (err == ESP_OK) {
-        size_t len = LORAWAN_DEV_EUI_LEN;
+        size_t len = LORA_DEV_EUI_LEN;
         if (nvs_get_blob(h, NVS_KEY_DEV_EUI, s_keys.dev_eui, &len) == ESP_OK
-            && len == LORAWAN_DEV_EUI_LEN) {
+            && len == LORA_DEV_EUI_LEN) {
             got_eui = true;
         }
 
-        len = LORAWAN_APP_KEY_LEN;
-        if (nvs_get_blob(h, NVS_KEY_APP_KEY, s_keys.app_key, &len) == ESP_OK
-            && len == LORAWAN_APP_KEY_LEN) {
+        len = LORA_NET_KEY_LEN;
+        if (nvs_get_blob(h, NVS_KEY_NET_KEY, s_keys.net_key, &len) == ESP_OK
+            && len == LORA_NET_KEY_LEN) {
             got_key = true;
         }
 
@@ -86,19 +86,19 @@ esp_err_t lorawan_provision_init(void)
         ESP_LOGI(TAG, "DevEUI derived from MAC (not in NVS)");
     }
 
-    /* AppKey fallback: compile-time BATEAR_NET_KEY (LoRa roles only).
-     * Wired Detector never reads s_keys.app_key, so we leave it zeroed
+    /* Network key fallback: compile-time BATEAR_NET_KEY (LoRa roles only).
+     * Wired Detector never reads s_keys.net_key, so we leave it zeroed
      * to make accidental misuse obvious in logs / packet dumps. */
     if (!got_key) {
 #ifdef CONFIG_BATEAR_NET_KEY
         static const uint8_t fallback[16] = BATEAR_NET_KEY;
-        memcpy(s_keys.app_key, fallback, 16);
+        memcpy(s_keys.net_key, fallback, 16);
         ESP_LOGW(TAG,
                  "No LoRa keys found in NVS. "
                  "Using default key — provision via Batear Web Flasher "
                  "for a unique network key.");
 #else
-        memset(s_keys.app_key, 0, sizeof(s_keys.app_key));
+        memset(s_keys.net_key, 0, sizeof(s_keys.net_key));
 #endif
     }
 
@@ -134,14 +134,14 @@ esp_err_t lorawan_provision_init(void)
     return ESP_OK;
 }
 
-const lorawan_keys_t *lorawan_get_keys(void)
+const lora_keys_t *lora_get_keys(void)
 {
     return &s_keys;
 }
 
-void lorawan_log_keys(const char *tag)
+void lora_log_keys(const char *tag)
 {
-    const lorawan_keys_t *k = &s_keys;
+    const lora_keys_t *k = &s_keys;
 
     ESP_LOGI(tag, "DevEUI: %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X%s",
              k->dev_eui[0], k->dev_eui[1], k->dev_eui[2], k->dev_eui[3],
@@ -149,15 +149,15 @@ void lorawan_log_keys(const char *tag)
              k->from_nvs ? " [NVS]" : " [MAC]");
 
 #ifdef CONFIG_BATEAR_NET_KEY
-    ESP_LOGI(tag, "AppKey: %02X%02X%02X%02X%02X%02X%02X%02X"
+    ESP_LOGI(tag, "NetKey: %02X%02X%02X%02X%02X%02X%02X%02X"
                   "%02X%02X%02X%02X%02X%02X%02X%02X%s",
-             k->app_key[0],  k->app_key[1],  k->app_key[2],  k->app_key[3],
-             k->app_key[4],  k->app_key[5],  k->app_key[6],  k->app_key[7],
-             k->app_key[8],  k->app_key[9],  k->app_key[10], k->app_key[11],
-             k->app_key[12], k->app_key[13], k->app_key[14], k->app_key[15],
+             k->net_key[0],  k->net_key[1],  k->net_key[2],  k->net_key[3],
+             k->net_key[4],  k->net_key[5],  k->net_key[6],  k->net_key[7],
+             k->net_key[8],  k->net_key[9],  k->net_key[10], k->net_key[11],
+             k->net_key[12], k->net_key[13], k->net_key[14], k->net_key[15],
              k->from_nvs ? " [NVS]" : " [DEFAULT]");
 #else
-    ESP_LOGI(tag, "AppKey: (not used in this role)");
+    ESP_LOGI(tag, "NetKey: (not used in this role)");
 #endif
 
     ESP_LOGI(tag, "DeviceID: %u (0x%02X)%s",
@@ -172,7 +172,7 @@ void lorawan_log_keys(const char *tag)
 #endif
 }
 
-uint16_t lorawan_next_boot_id(void)
+uint16_t lora_next_boot_id(void)
 {
     nvs_handle_t h;
     uint16_t id;
