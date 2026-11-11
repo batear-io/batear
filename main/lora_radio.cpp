@@ -278,7 +278,7 @@ static bool lora_transmit(const uint8_t *data, size_t len)
     return true;
 }
 
-static uint32_t now_ms(void)
+static uint32_t uptime_ms(void)
 {
     return (uint32_t)((uint64_t)esp_timer_get_time() / 1000ULL);
 }
@@ -450,10 +450,10 @@ static void receive_frame(int &rx_errors)
     }
     buf[0] = (uint8_t)((buf[0] & ~LORA_TTL_MASK) | (ttl - 1));
     if (mesh_schedule(&key, buf, len, ttl - 1, event_type == LORA_EVENT_TELEMETRY,
-                      now_ms(), esp_random())) {
+                      uptime_ms(), esp_random())) {
         ESP_LOGI(TAG, "relay queued orig=0x%02X boot=%u seq=%u ttl=%u->%u in %ldms",
                  key.orig_id, key.boot_id, key.seq, ttl, ttl - 1,
-                 (long)mesh_next_due_ms(now_ms()));
+                 (long)mesh_next_due_ms(uptime_ms()));
     } else {
         ESP_LOGW(TAG, "relay queue full — dropped orig=0x%02X seq=%u",
                  key.orig_id, key.seq);
@@ -467,7 +467,7 @@ static void send_due_relays(void)
 {
     uint8_t frame[MESH_FRAME_MAX];
     size_t  len;
-    while ((len = mesh_pop_due(now_ms(), frame)) > 0) {
+    while ((len = mesh_pop_due(uptime_ms(), frame)) > 0) {
         const lora_header_t *hdr = reinterpret_cast<const lora_header_t *>(frame);
         bool ok = lora_wake() && lora_transmit(frame, len);
         radio_idle();
@@ -528,7 +528,7 @@ extern "C" void LoRaTask(void *pvParameters)
             .per_hour        = CONFIG_BATEAR_MESH_RELAY_PER_HOUR,
             .burst           = CONFIG_BATEAR_MESH_RELAY_BURST,
         };
-        mesh_init(&mcfg, now_ms());
+        mesh_init(&mcfg, uptime_ms());
     }
 
     if (!lora_init()) {
@@ -564,7 +564,7 @@ extern "C" void LoRaTask(void *pvParameters)
         if (s_tx_enabled && (int32_t)(hb_deadline - xTaskGetTickCount()) <= 0) {
             DroneEvent_t hb = {};
             hb.type         = DRONE_EVENT_TELEMETRY;
-            hb.timestamp_ms = now_ms();
+            hb.timestamp_ms = uptime_ms();
             send_event(hb, consecutive_fails);
             hb_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(heartbeat_next_ms());
         }
@@ -577,7 +577,7 @@ extern "C" void LoRaTask(void *pvParameters)
             wait = ((int32_t)(hb_deadline - now) > 0) ? hb_deadline - now : 0;
         }
         if (s_relay_enabled) {
-            int32_t relay_ms = mesh_next_due_ms(now_ms());
+            int32_t relay_ms = mesh_next_due_ms(uptime_ms());
             if (relay_ms >= 0 && pdMS_TO_TICKS(relay_ms) < wait) {
                 wait = pdMS_TO_TICKS(relay_ms);
             }
