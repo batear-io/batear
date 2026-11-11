@@ -8,6 +8,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  CPPCHECK_VERSION: 2.13.0
 
 jobs:
   cppcheck:
@@ -16,8 +17,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Install Cppcheck
-        run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - name: Cache Cppcheck
+        id: cache-cppcheck
+        uses: actions/cache@v4
+        with:
+          path: ~/cppcheck
+          key: cppcheck-${{ env.CPPCHECK_VERSION }}-${{ runner.os }}
+
+      - name: Build Cppcheck
+        if: steps.cache-cppcheck.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 -b "$CPPCHECK_VERSION" https://github.com/danmar/cppcheck /tmp/cppcheck-src
+          cmake -S /tmp/cppcheck-src -B /tmp/cppcheck-build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$HOME/cppcheck" -DFILESDIR="$HOME/cppcheck/share/cppcheck"
+          cmake --build /tmp/cppcheck-build -j"$(nproc)"
+          cmake --install /tmp/cppcheck-build
+
+      - name: Add Cppcheck to PATH
+        run: |
+          echo "$HOME/cppcheck/bin" >> "$GITHUB_PATH"
+          "$HOME/cppcheck/bin/cppcheck" --version
 
       - name: Run Cppcheck
         run: |
