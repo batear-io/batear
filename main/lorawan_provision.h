@@ -50,6 +50,13 @@ const lorawan_keys_t *lorawan_get_keys(void);
 /** Log DevEUI and AppKey at INFO level. */
 void lorawan_log_keys(const char *tag);
 
+/**
+ * Increment and persist the per-node boot counter used in the LoRa frame
+ * header (and thus the GCM IV). Call once per boot, and again whenever the
+ * per-boot seq counter would wrap.
+ */
+uint16_t lorawan_next_boot_id(void);
+
 #ifdef __cplusplus
 }
 #endif

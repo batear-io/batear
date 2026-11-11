@@ -77,6 +77,7 @@ static EspIdfHal *s_hal    = nullptr;
 static Module    *s_module = nullptr;
 static SX1262    *s_radio  = nullptr;
 
+static uint16_t s_boot_id = 0;
 static uint16_t s_tx_seq = 0;
 static uint32_t s_tx_fail_total = 0;   /* monotonic, clamped to 255 on the wire */
 static uint32_t s_boot_ms = 0;
@@ -245,6 +246,9 @@ extern "C" void LoRaTask(void *pvParameters)
     parse_fw_version();
     battery_init();
 
+    s_boot_id = lorawan_next_boot_id();
+    ESP_LOGI(TAG, "frame v%d  boot_id=%u", LORA_FRAME_VERSION, (unsigned)s_boot_id);
+
     if (!lora_init()) {
         ESP_LOGE(TAG, "FATAL: radio init failed — suspending LoRaTask");
         vTaskSuspend(NULL);
@@ -286,6 +290,13 @@ extern "C" void LoRaTask(void *pvParameters)
         /* Prepare the payload once — seq, plaintext and ciphertext are all
          * reused across the retry, so a successful over-air delivery that was
          * mis-reported locally is dedup'd by the gateway's replay counter. */
+        /* (boot_id, seq) must never repeat: on seq wrap, start a new boot_id. */
+        if (s_tx_seq == UINT16_MAX) {
+            s_boot_id = lorawan_next_boot_id();
+            s_tx_seq  = 0;
+            ESP_LOGI(TAG, "seq wrapped — new boot_id=%u", (unsigned)s_boot_id);
+        }
+
         lora_plaintext_t pt = {};
         pt.seq        = s_tx_seq++;
         pt.device_id  = lorawan_get_keys()->device_id;
@@ -294,9 +305,12 @@ extern "C" void LoRaTask(void *pvParameters)
         pt.rms_db     = is_heartbeat ? 0 : lora_rms_to_db(ev.rms);
         fill_telemetry(&pt);
 
+        lora_header_t hdr;
+        lora_hdr_init(&hdr, pt.device_id, s_boot_id, pt.seq, LORA_TTL_DEFAULT);
+
         lora_packet_t pkt;
         const uint8_t *net_key = lorawan_get_keys()->app_key;
-        if (!lora_encrypt(net_key, pt.seq, &pt, &pkt)) {
+        if (!lora_encrypt(net_key, &hdr, &pt, &pkt)) {
             /* Encrypt failures are software-level (PSA init, key import) —
              * retrying will not help and burns airtime budget. Bail early. */
             ESP_LOGE(TAG, "encrypt failed — dropping seq=%u", (unsigned)pt.seq);
@@ -336,10 +350,10 @@ extern "C" void LoRaTask(void *pvParameters)
         }
 
         ESP_LOGI(TAG,
-                 "TX %s  seq=%u  dev=%u  type=0x%02X  rms_db=%u  attempts=%d  "
+                 "TX %s  boot=%u seq=%u  dev=%u  type=0x%02X  rms_db=%u  attempts=%d  "
                  "vbat=%umV  fw=%u.%u.%u  up=%umin  heap=%ukB  txfail=%u",
                  ok ? "OK" : "FAIL",
-                 (unsigned)pt.seq, (unsigned)pt.device_id,
+                 (unsigned)s_boot_id, (unsigned)pt.seq, (unsigned)pt.device_id,
                  (unsigned)pt.event_type, (unsigned)pt.rms_db, attempts,
                  (unsigned)lora_vbat_decode_mv(pt.vbat_cv),
                  (unsigned)pt.fw_major, (unsigned)pt.fw_minor, (unsigned)pt.fw_patch,

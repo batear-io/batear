@@ -36,6 +36,7 @@ static const char *TAG = "gw";
 typedef struct {
     bool     seen;
     bool     alarm;
+    uint16_t last_boot_id;
     uint16_t last_seq;
     uint16_t last_vbat_mv;
 } device_state_t;
@@ -44,6 +45,16 @@ typedef struct {
 static device_state_t s_devices[MAX_DEVICES];
 static uint32_t s_rx_count;
 static uint32_t s_reject_count;
+
+/* A packet is fresh if its boot_id is newer (serial-number arithmetic, so the
+ * 16-bit counter may wrap) or it's the same boot with a higher seq. */
+static bool is_fresh(const device_state_t *dev, const lora_header_t *hdr)
+{
+    if (!dev->seen) return true;
+    int16_t boot_delta = (int16_t)(hdr->boot_id - dev->last_boot_id);
+    if (boot_delta != 0) return boot_delta > 0;
+    return hdr->seq > dev->last_seq;
+}
 
 /* ---- radio management ---- */
 
@@ -228,31 +239,39 @@ extern "C" void GatewayTask(void *pvParameters)
         float  snr  = s_radio->getSNR();
 
         if (len != sizeof(lora_packet_t)) {
+            if (len == LORA_PACKET_LEN_V1) {
+                ESP_LOGW(TAG, "v1 frame (%u B) — detector runs pre-v3.0 firmware, upgrade it",
+                         (unsigned)len);
+            }
             s_reject_count++;
             display_idle();
             continue;
         }
 
+        const lora_packet_t *pkt = reinterpret_cast<const lora_packet_t *>(rx_buf);
         lora_plaintext_t pt;
         const uint8_t *net_key = lorawan_get_keys()->app_key;
-        if (!lora_decrypt(net_key, reinterpret_cast<lora_packet_t *>(rx_buf), &pt)) {
-            ESP_LOGW(TAG, "decrypt FAILED — wrong key or forged");
+        if (!lora_decrypt(net_key, pkt, &pt)) {
+            ESP_LOGW(TAG, "decrypt FAILED — wrong key, forged, or bad frame version");
             s_reject_count++;
             display_idle();
             continue;
         }
 
         device_state_t *dev = &s_devices[pt.device_id];
-        if (dev->seen && pt.seq <= dev->last_seq) {
-            ESP_LOGW(TAG, "REPLAY dev=0x%02X seq=%u", pt.device_id, pt.seq);
+        if (!is_fresh(dev, &pkt->hdr)) {
+            ESP_LOGW(TAG, "REPLAY dev=0x%02X boot=%u seq=%u (last boot=%u seq=%u)",
+                     pt.device_id, pkt->hdr.boot_id, pkt->hdr.seq,
+                     dev->last_boot_id, dev->last_seq);
             s_reject_count++;
             display_idle();
             continue;
         }
 
         s_rx_count++;
-        dev->seen     = true;
-        dev->last_seq = pt.seq;
+        dev->seen         = true;
+        dev->last_boot_id = pkt->hdr.boot_id;
+        dev->last_seq     = pt.seq;
         /* Heartbeat packets carry telemetry only — never clobber the cached
          * alarm state with them, so an ALARM→heartbeat sequence keeps the
          * LED and MQTT discovery binary_sensor in the ALARM state. */
@@ -265,10 +284,10 @@ extern "C" void GatewayTask(void *pvParameters)
         dev->last_vbat_mv = (vbat_mv32 > 0xFFFFU) ? 0xFFFFU : (uint16_t)vbat_mv32;
 
         ESP_LOGI(TAG,
-                 "dev=0x%02X %s seq=%u f0bin=%u rms=%udB RSSI=%.0f SNR=%.1f  "
+                 "dev=0x%02X %s boot=%u seq=%u f0bin=%u rms=%udB RSSI=%.0f SNR=%.1f  "
                  "vbat=%umV fw=%u.%u.%u up=%umin heap=%ukB txfail=%u fl=0x%02X",
                  pt.device_id, event_label(pt.event_type),
-                 pt.seq, pt.f0_bin, pt.rms_db, rssi, snr,
+                 pkt->hdr.boot_id, pt.seq, pt.f0_bin, pt.rms_db, rssi, snr,
                  (unsigned)vbat_mv32,
                  pt.fw_major, pt.fw_minor, pt.fw_patch,
                  pt.uptime_min, pt.free_heap_kb,

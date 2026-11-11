@@ -172,9 +172,9 @@ The detector transmits AES-128-GCM encrypted packets to the gateway on three tri
 
 Every packet carries the same telemetry fields (battery voltage, firmware version, uptime, free heap, cumulative TX failure counter, flags) so alarm/clear events piggyback diagnostics without extra airtime.
 
-Wire format is 36 bytes: `[4B nonce][16B ciphertext][16B GCM tag]`. See `main/lora_crypto.h` for the plaintext struct. **Packet format is not backward compatible** with the pre-2.x 28-byte layout — detectors and gateways must be upgraded together.
+Wire format (frame v2, firmware v3.0+) is 38 bytes: `[6B header: ver|ttl, orig_id, boot_id, seq][16B ciphertext][16B GCM tag]`. The GCM IV is built from `(orig_id, boot_id, seq)` and the header (minus TTL) is authenticated as AAD. `boot_id` is persisted in NVS and bumped every boot. See `main/lora_crypto.h` and `docs/protocol.md`. **Not backward compatible** with the pre-3.0 36-byte frame — detectors and gateways must be upgraded together.
 
-Alarm/clear events get **one local retry** with a 150–300 ms randomised backoff if `SX1262->transmit()` reports a local error. Heartbeats are fire-and-forget (the next interval refreshes the same snapshot). There is **no ACK** — the gateway uses `pt.seq <= dev->last_seq` as a replay counter to dedup duplicate RX from retries.
+Alarm/clear events get **one local retry** with a 150–300 ms randomised backoff if `SX1262->transmit()` reports a local error. Heartbeats are fire-and-forget (the next interval refreshes the same snapshot). There is **no ACK** — the gateway accepts a packet only if its `(boot_id, seq)` is newer than the last one from that detector, which dedups retries and rejects replays.
 
 ## TF Card Recording (Wired Detector)
 

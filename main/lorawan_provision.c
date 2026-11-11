@@ -9,6 +9,7 @@
 #include "nvs.h"
 #include "esp_mac.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include <string.h>
 
 static const char *TAG = "provision";
@@ -19,6 +20,7 @@ static const char *TAG = "provision";
 #define NVS_KEY_DEVICE_ID "device_id"
 #define NVS_KEY_LORA_FREQ "lora_freq"
 #define NVS_KEY_SYNC_WORD "sync_word"
+#define NVS_KEY_BOOT_ID   "boot_id"
 
 static lorawan_keys_t s_keys;
 static bool s_initialised;
@@ -168,4 +170,37 @@ void lorawan_log_keys(const char *tag)
              k->lora_freq_from_nvs ? " freq[NVS]" : " freq[DEFAULT]",
              k->sync_word_from_nvs ? " sw[NVS]" : " sw[DEFAULT]");
 #endif
+}
+
+uint16_t lorawan_next_boot_id(void)
+{
+    nvs_handle_t h;
+    uint16_t id;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err != ESP_OK) {
+        id = (uint16_t)esp_random();
+        ESP_LOGE(TAG, "boot_id: nvs_open failed (%s) — using random %u",
+                 esp_err_to_name(err), id);
+        return id;
+    }
+
+    /* Missing (first boot or erased NVS): start at a random point rather than
+     * 0 so an NVS wipe is unlikely to replay IVs from earlier boots. */
+    if (nvs_get_u16(h, NVS_KEY_BOOT_ID, &id) == ESP_OK) {
+        id++;
+    } else {
+        id = (uint16_t)esp_random();
+    }
+
+    err = nvs_set_u16(h, NVS_KEY_BOOT_ID, id);
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    if (err != ESP_OK) {
+        id = (uint16_t)esp_random();
+        ESP_LOGE(TAG, "boot_id: persist failed (%s) — using random %u",
+                 esp_err_to_name(err), id);
+    }
+    return id;
 }
