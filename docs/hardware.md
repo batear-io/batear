@@ -95,3 +95,7 @@ The wired detector connects directly to your network via Ethernet (RJ45). If you
 
 No external wiring needed — everything is on-board.
 
+## Relay
+
+Same board as the gateway, no Wi-Fi needed. A relay listens continuously (~10–15 mA on top of the ESP32-S3), so power it from USB or another mains supply rather than a battery. Put it where it can hear the far detectors and reach a gateway — e.g. high up, halfway between them.
+

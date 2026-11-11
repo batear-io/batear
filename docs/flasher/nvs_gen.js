@@ -8,7 +8,7 @@
  *     u8   "device_id" (1 byte, detector only)
  *
  *   namespace "node_cfg"  (LoRa node capabilities, optional)
- *     u8   "cap_mic" / "cap_rx" / "cap_bridge"   (0 = off, 1 = on, 2 = auto)
+ *     u8   "cap_mic" / "cap_rx" / "cap_bridge" / "cap_relay"   (0 = off, 1 = on, 2 = auto)
  *
  *   namespace "gateway_cfg"  (gateway only)
  *     str  "wifi_ssid"
@@ -203,12 +203,15 @@ function writeNamespaceEntry(page, entryIdx, name, nsIdx) {
   return entryIdx + 1;
 }
 
-/** caps: { mic, rx, bridge } with values 0 = off, 1 = on, 2 = auto. */
+/** caps: { mic, rx, bridge, relay? } with values 0 = off, 1 = on, 2 = auto. */
 function writeNodeCaps(page, entryIdx, caps) {
   let idx = writeNamespaceEntry(page, entryIdx, "node_cfg", NS_NODE_CFG);
   idx = writeU8Entry(page, idx, NS_NODE_CFG, "cap_mic", caps.mic);
   idx = writeU8Entry(page, idx, NS_NODE_CFG, "cap_rx", caps.rx);
   idx = writeU8Entry(page, idx, NS_NODE_CFG, "cap_bridge", caps.bridge);
+  if (caps.relay !== undefined) {
+    idx = writeU8Entry(page, idx, NS_NODE_CFG, "cap_relay", caps.relay);
+  }
   return idx;
 }
 

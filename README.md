@@ -48,7 +48,7 @@ Drones are an increasing threat to homes, farms, and communities — and effecti
 
 For ultra-low-cost hardware, Batear turns a tiny ESP32-S3 microcontroller and a MEMS microphone into an always-on acoustic drone detector. It runs entirely at the edge — **no cloud subscription, no internet connection, no ongoing cost.** Deploy one at a window, a fence line, or a rooftop and it will alert you the moment drone rotor harmonics are detected nearby.
 
-The same codebase builds as a **Detector** (mic + LoRa TX), a **Gateway** (LoRa RX + OLED + LED + MQTT), or a **Wired Detector** (mic + Ethernet/PoE + MQTT), selectable at build time. The gateway forwards alerts to **Home Assistant** via MQTT with automatic device discovery; the wired detector publishes directly over Ethernet — no LoRa or gateway required, ideal for permanent installations.
+One **LoRa node** firmware runs as a **Detector** (mic + LoRa TX), a **Relay** (re-transmits other nodes' packets), or a **Gateway** (LoRa RX + OLED + LED + MQTT) — chosen per device at flash time — and the nodes form a small mesh. Any number of gateways forward alerts to **Home Assistant** via MQTT with automatic device discovery, one HA device per detector. The **Wired Detector** (mic + Ethernet/PoE + MQTT) is a separate build that publishes directly over Ethernet — no LoRa or gateway required, ideal for permanent installations.
 
 ---
 
@@ -58,7 +58,7 @@ Flash firmware directly from your browser — no toolchain needed:
 
 **[Open Web Flasher](https://docs.batear.io/flasher/)**
 
-> Requires Chrome or Edge on desktop. Connect a Heltec V3/V4 (Detector or Gateway) or a LILYGO T-ETH-Lite S3 (Wired Detector) via USB-C and click Install.
+> Requires Chrome or Edge on desktop. Connect a Heltec V3/V4 (Detector, Relay or Gateway) or a LILYGO T-ETH-Lite S3 (Wired Detector) via USB-C and click Install.
 
 ---
 
@@ -104,24 +104,33 @@ Full documentation is available at **[batear.io](https://docs.batear.io)**.
 
 Batear supports two deployment models — pick whichever fits the site:
 
-### Wireless (LoRa Detector → Gateway → MQTT)
+### Wireless (LoRa mesh → MQTT)
 
 ```
-┌──────────────────────┐        LoRa 915 MHz          ┌──────────────────────┐
-│    DETECTOR (×N)     │ ───────────────────────────► │     GATEWAY (×1)     │
-│                      │  AES-128-GCM encrypted       │                      │
-│  ICS-43434 mic       │  38-byte packets             │  SSD1306 OLED display│
-│  FFT harmonic detect │                              │  LED alarm indicator │
-│  SX1262 LoRa TX      │                              │  SX1262 LoRa RX      │
-└──────────────────────┘                              │  WiFi + MQTT TX      │
-   Heltec WiFi LoRa 32 V3/V4                          └──────────┬───────────┘
-                                                        Heltec WiFi LoRa 32 V3/V4
-                                                                  │ MQTT
-                                                                  ▼
-                                                      ┌──────────────────────┐
-                                                      │   HOME ASSISTANT     │
-                                                      │   (auto-discovery)   │
-                                                      └──────────────────────┘
+                               direct, when in range
+          ┌─────────────────────────────────────────────────────────────┐
+          │                                                             ▼
+┌─────────┴────────┐          ┌──────────────────┐          ┌──────────────────────┐
+│ DETECTOR (×N)    │          │ RELAY (×0..N)    │          │ GATEWAY (×1..N)      │
+│                  │   LoRa   │ optional         │   LoRa   │                      │
+│ ICS-43434 mic    │ ───────► │                  │ ───────► │ SX1262 LoRa RX       │
+│ FFT detection    │          │ re-transmits     │          │ SSD1306 OLED + LED   │
+│ Battery monitor  │          │ others' packets  │          │ Wi-Fi + MQTT         │
+│ SX1262 LoRa TX   │          │ up to 3 hops     │          │ relay (optional)     │
+└──────────────────┘          └──────────────────┘          └───────────┬──────────┘
+                                                                        │ MQTT
+                                                                        ▼
+                                                            ┌──────────────────────┐
+                                                            │ HOME ASSISTANT       │
+                                                            │                      │
+                                                            │ one device per       │
+                                                            │ detector, whichever  │
+                                                            │ gateway heard it     │
+                                                            └──────────────────────┘
+
+Every LoRa box is a Heltec WiFi LoRa 32 V3/V4 running the same node
+firmware; its role comes from capabilities set at flash time.
+Packets: AES-128-GCM, 38 bytes.
 ```
 
 ### Wired (Ethernet/PoE Detector → MQTT, no gateway)
