@@ -16,6 +16,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "driver/i2s_std.h"
+#include "driver/gpio.h"
 #include "sdkconfig.h"
 
 #if CONFIG_BATEAR_ROLE_WIRED_DETECTOR
@@ -101,6 +102,43 @@ static esp_err_t i2s_microphone_init(void)
     }
     return i2s_channel_enable(s_rx);
 }
+
+#if CONFIG_BATEAR_LORA_NODE
+bool audio_mic_probe(void)
+{
+    gpio_pulldown_en(I2S_MIC_DIN_GPIO);
+
+    if (i2s_microphone_init() != ESP_OK) {
+        ESP_LOGW(TAG, "mic probe: I2S init failed — treating as no mic");
+        return false;
+    }
+    gpio_pulldown_en(I2S_MIC_DIN_GPIO);  /* again, in case pin setup reset it */
+
+    /* The mic outputs zeros for up to ~85 ms after the clock starts, so look
+     * for any non-zero sample over a longer window. */
+    static int32_t buf[256];
+    bool present = false;
+    int64_t until = esp_timer_get_time() + 400000;
+    while (!present && esp_timer_get_time() < until) {
+        size_t got = 0;
+        if (i2s_channel_read(s_rx, buf, sizeof(buf), &got, pdMS_TO_TICKS(100)) != ESP_OK) {
+            continue;
+        }
+        for (size_t i = 0; i < got / sizeof(buf[0]); i++) {
+            if (buf[i] != 0) {
+                present = true;
+                break;
+            }
+        }
+    }
+
+    i2s_channel_disable(s_rx);
+    i2s_del_channel(s_rx);
+    s_rx = NULL;
+    ESP_LOGI(TAG, "mic probe: %s", present ? "mic detected" : "no mic");
+    return present;
+}
+#endif
 
 /**
  * Block until one full FRAME_SAMPLES mono int32 frame is available.

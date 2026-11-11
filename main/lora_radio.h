@@ -1,5 +1,5 @@
 /*
- * lora_task.h — LoRaTask declaration (pinned to Core 0)
+ * lora_radio.h — LoRaTask: the task that owns the SX1262 (pinned to Core 0)
  */
 #pragma once
 

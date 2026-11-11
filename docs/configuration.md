@@ -155,13 +155,13 @@ batear>
 !!! note
     `net_key` is the AES-128 LoRa pre-shared key. The Wired Detector role does not transmit over LoRa, so it does not expose `net_key` from its serial console — use `mqtts://` if you need transport encryption to the broker.
 
-**Detector and wired detector:**
+**LoRa node and wired detector:**
 
 | Key | Format | Example | NVS namespace |
 |:---|:---|:---|:---|
 | `device_id` | 0–255 | `set device_id 2` | `lora_cfg` |
 
-**Gateway only:**
+**LoRa node only:**
 
 | Key | Format | Example | NVS namespace |
 |:---|:---|:---|:---|
@@ -171,6 +171,18 @@ batear>
 | `mqtt_user` | string | `set mqtt_user ha_user` | `gateway_cfg` |
 | `mqtt_pass` | string | `set mqtt_pass ha_pass` | `gateway_cfg` |
 | `mqtt_device_id` | string | `set mqtt_device_id gw01` | `gateway_cfg` |
+| `cap_mic` | `off` / `on` / `auto` | `set cap_mic auto` | `node_cfg` |
+| `cap_rx` | `off` / `on` / `auto` | `set cap_rx on` | `node_cfg` |
+| `cap_bridge` | `off` / `on` / `auto` | `set cap_bridge auto` | `node_cfg` |
+
+!!! note "Node capabilities"
+    Detector and gateway builds are the same LoRa node image; what a node does is resolved at boot:
+
+    - `cap_mic` — run the audio detector and transmit alarm/clear/heartbeat. `auto` probes the I2S mic.
+    - `cap_rx` — keep the radio listening and show received events on the OLED + LED. `auto` = on when there is no mic. Listening draws ~10–15 mA, so leave it off on battery nodes.
+    - `cap_bridge` — publish received events to MQTT over Wi-Fi (implies `cap_rx`). `auto` = on when `wifi_ssid` is set.
+
+    Unset keys fall back to the build preset: detector = mic on / rx off / bridge off; gateway = mic off / rx on / bridge auto. Reboot after changing them.
 
 **Wired detector only:**
 

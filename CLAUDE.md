@@ -2,7 +2,7 @@
 
 ESP32-S3 acoustic drone detection with encrypted LoRa alerting or direct Ethernet/MQTT. ESP-IDF 6.x.
 
-Same codebase builds as **Detector**, **Gateway**, or **Wired Detector** via sdkconfig files.
+Same codebase builds as a **LoRa node** or a **Wired Detector** via sdkconfig files. Detector and gateway are presets of the same LoRa node image; what a node does (mic / rx / bridge) is resolved at boot from NVS `node_cfg` (see `main/node_caps.h`).
 
 ## Board → Target
 
@@ -41,8 +41,9 @@ idf.py -B build_wired_detector -DSDKCONFIG=build_wired_detector/sdkconfig -p POR
 | File | Purpose |
 |---|---|
 | `sdkconfig.defaults` | Common ESP-IDF settings (CPU freq, logging, stack) |
-| `sdkconfig.detector` | Board, flash size, role, device ID, network config |
-| `sdkconfig.gateway` | Board, flash size, role, network config |
+| `sdkconfig.detector` | LoRa node, detector preset (mic on, rx off). Board, flash size, device ID, network config |
+| `sdkconfig.gateway` | LoRa node, gateway preset (mic off, rx on, bridge auto). Board, flash size, network config |
+| `partitions_lora.csv` | LoRa node partition table: 3 MiB factory app (the combined image is >1 MiB) |
 | `sdkconfig.wired_detector` | Board, flash size, role, MQTT config (Ethernet) |
 
 Key parameters in sdkconfig role files:
@@ -98,13 +99,14 @@ batear/
 │   ├── audio_processor.c/.h    # [detector/wired] ESP-DSP FFT + PSD + harmonic analysis
 │   ├── audio_task.c/.h         # [detector/wired] I2S mic + detection state machine
 │   ├── battery.c/.h            # [detector] VBAT ADC + divider gating
-│   ├── lora_task.cpp/.h        # [detector] LoRa TX (event + heartbeat, jittered)
+│   ├── node_caps.c/.h          # [node]     runtime capabilities (mic / rx / bridge)
+│   ├── lora_radio.cpp/.h       # [node]     owns the SX1262: TX own events (heartbeat jittered), RX → node_rx
 │   ├── eth_mqtt_task.cpp/.h    # [wired]    W5500 Ethernet + MQTT + HA Discovery
 │   ├── http_api.cpp/.h         # [wired]    REST API + OTA (GET info/status/recordings, POST ota/config/reboot, DELETE recordings)
 │   ├── tf_recorder.c/.h        # [wired]    microSD WAV capture (ALARM auto + BOOT push-to-talk manual + always-on)
 │   ├── manual_capture.c/.h     # [wired]    BOOT (GPIO 0) push-to-talk handler
 │   ├── ntp_time.c/.h           # [wired]    SNTP for recording filename timestamps
-│   ├── gateway_task.cpp/.h     # [gateway]  LoRa RX + OLED + LED
+│   ├── node_rx.cpp/.h          # [node]     decrypt + replay check + OLED + LED → MQTT
 │   ├── mqtt_task.cpp/.h        # [gateway]  WiFi + MQTT + HA Discovery
 │   ├── oled.c/.h               # [gateway]  SSD1306 128x64 driver
 │   └── idf_component.yml       # RadioLib + ESP-DSP + W5500 dependencies
