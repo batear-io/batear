@@ -6,6 +6,9 @@
  * RX (node has rx):    the radio sits in continuous receive; DIO1 wakes
  * the task, which hands the frame to node_rx.
  *
+ * Relay (node has relay): accepted packets from other nodes are queued in
+ * mesh.c and re-transmitted with TTL - 1 after a slotted random backoff.
+ *
  * The SX1262 is half-duplex, so a node with both pauses RX for its own TX
  * and resumes afterwards. A TX-only node parks the radio in deep sleep.
  *
@@ -15,6 +18,7 @@
 #include "lora_radio.h"
 #include "node_caps.h"
 #include "node_rx.h"
+#include "mesh.h"
 #include "drone_detector.h"
 #include "lora_crypto.h"
 #include "lora_provision.h"
@@ -89,6 +93,7 @@ static SX1262    *s_radio  = nullptr;
 
 static bool s_tx_enabled = false;
 static bool s_rx_enabled = false;
+static bool s_relay_enabled = false;
 static SemaphoreHandle_t s_rx_sem = nullptr;
 
 static uint16_t s_boot_id = 0;
@@ -273,6 +278,11 @@ static bool lora_transmit(const uint8_t *data, size_t len)
     return true;
 }
 
+static uint32_t uptime_ms(void)
+{
+    return (uint32_t)((uint64_t)esp_timer_get_time() / 1000ULL);
+}
+
 /* =========================================================================
  * TX path — encrypt and send one locally originated event
  * ====================================================================== */
@@ -309,9 +319,12 @@ static void send_event(const DroneEvent_t &ev, int &consecutive_fails)
     lora_header_t hdr;
     lora_hdr_init(&hdr, pt.device_id, s_boot_id, pt.seq, LORA_TTL_DEFAULT);
 
-    /* A node that also listens can't hear its own TX — deliver it locally. */
+    /* A node that also listens can't hear its own TX — deliver it locally,
+     * and remember it so relayed echoes of it are dropped as duplicates. */
     if (s_rx_enabled) {
         node_rx_local(&hdr, &pt);
+        mesh_key_t key = { hdr.orig_id, hdr.boot_id, hdr.seq };
+        mesh_record(&key);
     }
 
     lora_packet_t pkt;
@@ -406,7 +419,62 @@ static void receive_frame(int &rx_errors)
     }
 
     rx_errors = 0;
-    node_rx_packet(buf, len, rssi, snr);
+
+    /* Copies of a packet we already accepted (direct, or via another relay)
+     * are dropped before decryption. The ring only holds authenticated
+     * keys, so a forged header can't make us drop a genuine packet. */
+    const lora_header_t *hdr = reinterpret_cast<const lora_header_t *>(buf);
+    const bool framed = (len == sizeof(lora_packet_t) &&
+                         lora_hdr_version(hdr) == LORA_FRAME_VERSION);
+    mesh_key_t key = {};
+    if (framed) {
+        key = { hdr->orig_id, hdr->boot_id, hdr->seq };
+        if (mesh_is_dup(&key, lora_hdr_ttl(hdr))) {
+            ESP_LOGD(TAG, "dup orig=0x%02X boot=%u seq=%u ttl=%u",
+                     key.orig_id, key.boot_id, key.seq, lora_hdr_ttl(hdr));
+            return;
+        }
+    }
+
+    uint8_t event_type = 0;
+    if (node_rx_packet(buf, len, rssi, snr, &event_type) != NODE_RX_OK) {
+        return;
+    }
+    mesh_record(&key);
+
+    /* Relay: other nodes' fresh, authenticated packets with TTL left. TTL is
+     * outside the GCM AAD, so rewriting it keeps the tag valid. */
+    uint8_t ttl = lora_hdr_ttl(hdr);
+    if (!s_relay_enabled || ttl == 0 || key.orig_id == lora_get_keys()->device_id) {
+        return;
+    }
+    buf[0] = (uint8_t)((buf[0] & ~LORA_TTL_MASK) | (ttl - 1));
+    if (mesh_schedule(&key, buf, len, ttl - 1, event_type == LORA_EVENT_TELEMETRY,
+                      uptime_ms(), esp_random())) {
+        ESP_LOGI(TAG, "relay queued orig=0x%02X boot=%u seq=%u ttl=%u->%u in %ldms",
+                 key.orig_id, key.boot_id, key.seq, ttl, ttl - 1,
+                 (long)mesh_next_due_ms(uptime_ms()));
+    } else {
+        ESP_LOGW(TAG, "relay queue full — dropped orig=0x%02X seq=%u",
+                 key.orig_id, key.seq);
+    }
+}
+
+/* =========================================================================
+ * Relay TX — send every queued relay that is due
+ * ====================================================================== */
+static void send_due_relays(void)
+{
+    uint8_t frame[MESH_FRAME_MAX];
+    size_t  len;
+    while ((len = mesh_pop_due(uptime_ms(), frame)) > 0) {
+        const lora_header_t *hdr = reinterpret_cast<const lora_header_t *>(frame);
+        bool ok = lora_wake() && lora_transmit(frame, len);
+        radio_idle();
+        ESP_LOGI(TAG, "RELAY %s orig=0x%02X boot=%u seq=%u ttl=%u",
+                 ok ? "OK" : "FAIL", hdr->orig_id, hdr->boot_id, hdr->seq,
+                 lora_hdr_ttl(hdr));
+    }
 }
 
 /* =========================================================================
@@ -418,8 +486,9 @@ extern "C" void LoRaTask(void *pvParameters)
 
     ESP_LOGI(TAG, "LoRaTask start (core %d)", xPortGetCoreID());
 
-    s_tx_enabled = node_caps()->mic;
-    s_rx_enabled = node_caps()->rx;
+    s_tx_enabled    = node_caps()->mic;
+    s_rx_enabled    = node_caps()->rx;
+    s_relay_enabled = node_caps()->relay;
     if (!s_tx_enabled && !s_rx_enabled) {
         ESP_LOGW(TAG, "neither mic nor rx enabled — radio unused, suspending");
         vTaskSuspend(NULL);
@@ -447,8 +516,20 @@ extern "C" void LoRaTask(void *pvParameters)
     }
 
     s_boot_id = lora_next_boot_id();
-    ESP_LOGI(TAG, "frame v%d  boot_id=%u  tx=%d rx=%d", LORA_FRAME_VERSION,
-             (unsigned)s_boot_id, s_tx_enabled, s_rx_enabled);
+    ESP_LOGI(TAG, "frame v%d  boot_id=%u  tx=%d rx=%d relay=%d", LORA_FRAME_VERSION,
+             (unsigned)s_boot_id, s_tx_enabled, s_rx_enabled, s_relay_enabled);
+
+    if (s_rx_enabled) {
+        const mesh_config_t mcfg = {
+            .slot_ms         = CONFIG_BATEAR_MESH_SLOT_MS,
+            .event_slots     = CONFIG_BATEAR_MESH_EVENT_SLOTS,
+            .heartbeat_slots = CONFIG_BATEAR_MESH_HEARTBEAT_SLOTS,
+            .suppress_dups   = CONFIG_BATEAR_MESH_SUPPRESS_DUPS,
+            .per_hour        = CONFIG_BATEAR_MESH_RELAY_PER_HOUR,
+            .burst           = CONFIG_BATEAR_MESH_RELAY_BURST,
+        };
+        mesh_init(&mcfg, uptime_ms());
+    }
 
     if (!lora_init()) {
         ESP_LOGE(TAG, "FATAL: radio init failed — suspending LoRaTask");
@@ -471,10 +552,35 @@ extern "C" void LoRaTask(void *pvParameters)
     TickType_t hb_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(heartbeat_next_ms());
 
     for (;;) {
+        if (s_relay_enabled) {
+            send_due_relays();
+        }
+
+        /*
+         * Heartbeat deadline passed: synthesise a TELEMETRY packet so the
+         * gateway (and HA) keep seeing fresh battery / uptime / heap numbers
+         * in silent periods.
+         */
+        if (s_tx_enabled && (int32_t)(hb_deadline - xTaskGetTickCount()) <= 0) {
+            DroneEvent_t hb = {};
+            hb.type         = DRONE_EVENT_TELEMETRY;
+            hb.timestamp_ms = uptime_ms();
+            send_event(hb, consecutive_fails);
+            hb_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(heartbeat_next_ms());
+        }
+
+        /* Sleep until an own event, a received frame, the heartbeat deadline
+         * or the next relay — whichever comes first. */
         TickType_t wait = portMAX_DELAY;
         if (s_tx_enabled) {
             TickType_t now = xTaskGetTickCount();
             wait = ((int32_t)(hb_deadline - now) > 0) ? hb_deadline - now : 0;
+        }
+        if (s_relay_enabled) {
+            int32_t relay_ms = mesh_next_due_ms(uptime_ms());
+            if (relay_ms >= 0 && pdMS_TO_TICKS(relay_ms) < wait) {
+                wait = pdMS_TO_TICKS(relay_ms);
+            }
         }
 
         QueueSetMemberHandle_t ready = xQueueSelectFromSet(set, wait);
@@ -482,22 +588,11 @@ extern "C" void LoRaTask(void *pvParameters)
         if (s_rx_enabled && ready == s_rx_sem) {
             xSemaphoreTake(s_rx_sem, 0);
             receive_frame(rx_errors);
-            continue;
-        }
-
-        /*
-         * Own audio event, or the heartbeat deadline passed: in the latter
-         * case synthesise a TELEMETRY packet so the gateway (and HA) keep
-         * seeing fresh battery / uptime / heap numbers in silent periods.
-         */
-        DroneEvent_t ev = {};
-        if (ready == g_drone_event_queue) {
+        } else if (s_tx_enabled && ready == g_drone_event_queue) {
+            DroneEvent_t ev = {};
             xQueueReceive(g_drone_event_queue, &ev, 0);
-        } else {
-            ev.type         = DRONE_EVENT_TELEMETRY;
-            ev.timestamp_ms = (uint32_t)(esp_timer_get_time() / 1000LL);
+            send_event(ev, consecutive_fails);
+            hb_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(heartbeat_next_ms());
         }
-        send_event(ev, consecutive_fails);
-        hb_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(heartbeat_next_ms());
     }
 }

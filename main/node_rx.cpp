@@ -12,6 +12,8 @@
 #include "lora_provision.h"
 #include "pin_config.h"
 #include "oled.h"
+#include "mesh.h"
+#include "node_caps.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -46,15 +48,27 @@ static bool is_fresh(const device_state_t *dev, const lora_header_t *hdr)
 
 /* ---- display helpers ---- */
 
+/* Bottom status line: received, rejected, and relayed (relay nodes only). */
+static void print_status_line(void)
+{
+    char line[32];
+    if (node_caps()->relay) {
+        snprintf(line, sizeof(line), "rx:%lu bad:%lu rl:%lu",
+                 (unsigned long)s_rx_count, (unsigned long)s_reject_count,
+                 (unsigned long)mesh_stats()->relayed);
+    } else {
+        snprintf(line, sizeof(line), "rx:%lu bad:%lu",
+                 (unsigned long)s_rx_count, (unsigned long)s_reject_count);
+    }
+    oled_print(0, 7, line);
+}
+
 static void display_idle(void)
 {
     oled_clear();
     oled_print(0, 0, "BATEAR GATEWAY");
     oled_print(0, 2, "Listening...");
-    char line[22];
-    snprintf(line, sizeof(line), "rx:%lu bad:%lu",
-             (unsigned long)s_rx_count, (unsigned long)s_reject_count);
-    oled_print(0, 7, line);
+    print_status_line();
     oled_flush();
 }
 
@@ -96,9 +110,7 @@ static void display_event(const lora_plaintext_t *pt, float rssi, float snr)
              pt->seq, pt->fw_major, pt->fw_minor, pt->fw_patch);
     oled_print(0, 6, line);
 
-    snprintf(line, sizeof(line), "rx:%lu bad:%lu",
-             (unsigned long)s_rx_count, (unsigned long)s_reject_count);
-    oled_print(0, 7, line);
+    print_status_line();
     oled_flush();
 }
 
@@ -205,7 +217,8 @@ extern "C" void node_rx_error(void)
     display_idle();
 }
 
-extern "C" void node_rx_packet(const uint8_t *buf, size_t len, float rssi, float snr)
+extern "C" node_rx_result_t node_rx_packet(const uint8_t *buf, size_t len,
+                                           float rssi, float snr, uint8_t *event_type)
 {
     if (len != sizeof(lora_packet_t)) {
         if (len == LORA_PACKET_LEN_V1) {
@@ -213,7 +226,7 @@ extern "C" void node_rx_packet(const uint8_t *buf, size_t len, float rssi, float
                      (unsigned)len);
         }
         node_rx_error();
-        return;
+        return NODE_RX_BAD;
     }
 
     const lora_packet_t *pkt = reinterpret_cast<const lora_packet_t *>(buf);
@@ -222,7 +235,7 @@ extern "C" void node_rx_packet(const uint8_t *buf, size_t len, float rssi, float
     if (!lora_decrypt(net_key, pkt, &pt)) {
         ESP_LOGW(TAG, "decrypt FAILED — wrong key, forged, or bad frame version");
         node_rx_error();
-        return;
+        return NODE_RX_BAD;
     }
 
     const device_state_t *dev = &s_devices[pt.device_id];
@@ -231,10 +244,12 @@ extern "C" void node_rx_packet(const uint8_t *buf, size_t len, float rssi, float
                  pt.device_id, pkt->hdr.boot_id, pkt->hdr.seq,
                  dev->last_boot_id, dev->last_seq);
         node_rx_error();
-        return;
+        return NODE_RX_STALE;
     }
 
     deliver(&pkt->hdr, &pt, rssi, snr);
+    *event_type = pt.event_type;
+    return NODE_RX_OK;
 }
 
 extern "C" void node_rx_local(const lora_header_t *hdr, const lora_plaintext_t *pt)

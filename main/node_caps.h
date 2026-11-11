@@ -3,7 +3,7 @@
  *
  * One firmware image serves every LoRa deployment shape. What a node does is
  * decided at boot from NVS namespace "node_cfg" (keys cap_mic, cap_rx,
- * cap_bridge; 0 = off, 1 = on, 2 = auto), falling back to the Kconfig
+ * cap_bridge, cap_relay; 0 = off, 1 = on, 2 = auto), falling back to the Kconfig
  * defaults of the build's role preset.
  *
  *   mic    — run AudioTask and transmit alarm/clear/heartbeat over LoRa.
@@ -12,6 +12,9 @@
  *            auto: on when the node has no mic (mains-powered gateway/relay).
  *   bridge — publish received events to MQTT over Wi-Fi. Implies rx.
  *            auto: on when a Wi-Fi SSID is configured.
+ *   relay  — re-transmit other nodes' packets (mesh.h). Implies rx.
+ *            auto: treated as off — relaying costs RX current and airtime,
+ *            so it must be switched on explicitly.
  */
 #pragma once
 
@@ -30,6 +33,7 @@ typedef struct {
     bool mic;
     bool rx;
     bool bridge;
+    bool relay;
 } node_caps_t;
 
 /* Resolve capabilities once at boot. Call after nvs_flash_init(). */

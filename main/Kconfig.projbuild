@@ -72,6 +72,60 @@ menu "Node capability defaults (overridden by NVS node_cfg)"
         default 0 if BATEAR_ROLE_DETECTOR
         default 2
 
+    config BATEAR_CAP_RELAY_DEFAULT
+        int "Mesh relay: 0=off 1=on (2=auto is treated as off)"
+        range 0 2
+        default 0
+        help
+            Re-transmit other nodes' packets. Implies RX. Only enable on
+            mains-powered nodes.
+
+endmenu
+
+menu "Mesh relay"
+    depends on BATEAR_LORA_NODE
+
+    config BATEAR_MESH_SLOT_MS
+        int "Relay backoff slot (ms)"
+        default 600
+        range 100 5000
+        help
+            Relays wait a random number of slots before re-transmitting, so
+            one that picked a later slot hears an earlier relay's copy and
+            cancels its own. Must be at least one packet airtime: ~494 ms at
+            SF10 / BW125.
+
+    config BATEAR_MESH_EVENT_SLOTS
+        int "Backoff slots for alarm/clear"
+        default 4
+        range 1 16
+
+    config BATEAR_MESH_HEARTBEAT_SLOTS
+        int "Backoff slots for telemetry heartbeats"
+        default 8
+        range 1 32
+        help
+            More slots than alarm/clear so heartbeats yield the channel.
+
+    config BATEAR_MESH_SUPPRESS_DUPS
+        int "Cancel a pending relay after hearing N other copies (0 = never)"
+        default 1
+        range 0 8
+
+    config BATEAR_MESH_RELAY_PER_HOUR
+        int "Relay budget per hour"
+        default 60
+        range 1 3600
+        help
+            Token-bucket refill rate. One relayed packet is ~0.5 s of airtime
+            at SF10, so 60/h is ~30 s/h, inside the EU 868 MHz 1 % duty-cycle
+            limit (36 s/h). Raise it on bands without a duty-cycle limit.
+
+    config BATEAR_MESH_RELAY_BURST
+        int "Relay budget burst"
+        default 10
+        range 1 100
+
 endmenu
 
 config BATEAR_TELEMETRY_HEARTBEAT_MIN

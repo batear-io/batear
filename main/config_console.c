@@ -200,6 +200,7 @@ static int cmd_show(int argc, char **argv)
             print_nvs_u8(h, "cap_mic", "cap_mic");
             print_nvs_u8(h, "cap_rx", "cap_rx");
             print_nvs_u8(h, "cap_bridge", "cap_bridge");
+            print_nvs_u8(h, "cap_relay", "cap_relay");
             nvs_close(h);
         } else {
             printf("  (namespace not found — using Kconfig defaults)\n");
@@ -209,6 +210,7 @@ static int cmd_show(int argc, char **argv)
     printf("    cap_mic    = %d\n", CONFIG_BATEAR_CAP_MIC_DEFAULT);
     printf("    cap_rx     = %d\n", CONFIG_BATEAR_CAP_RX_DEFAULT);
     printf("    cap_bridge = %d\n", CONFIG_BATEAR_CAP_BRIDGE_DEFAULT);
+    printf("    cap_relay  = %d\n", CONFIG_BATEAR_CAP_RELAY_DEFAULT);
 #endif
 
 #ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR
@@ -367,7 +369,7 @@ static int cmd_set(int argc, char **argv)
         printf("  mqtt_user   — MQTT username\n");
         printf("  mqtt_pass   — MQTT password\n");
         printf("  mqtt_device_id — gateway ID for MQTT topics\n");
-        printf("  cap_mic / cap_rx / cap_bridge — off | on | auto\n");
+        printf("  cap_mic / cap_rx / cap_bridge / cap_relay — off | on | auto\n");
 #endif
 #ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR
         printf("  mqtt_url    — e.g. mqtt://192.168.1.100:1883\n");
@@ -445,7 +447,7 @@ static int cmd_set(int argc, char **argv)
         return set_nvs_str("gateway_cfg", "device_id", value);
 
     if (strcmp(key, "cap_mic") == 0 || strcmp(key, "cap_rx") == 0 ||
-        strcmp(key, "cap_bridge") == 0) {
+        strcmp(key, "cap_bridge") == 0 || strcmp(key, "cap_relay") == 0) {
         uint8_t v;
         if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0) {
             v = 0;
