@@ -172,11 +172,55 @@ void lora_log_keys(const char *tag)
 #endif
 }
 
-uint16_t lora_next_boot_id(void)
+/*
+ * The boot counter lives in its own NVS partition ("bootctr", placed after
+ * the app in partitions_lora.csv) because flashing a merged image from the
+ * web flasher overwrites the main NVS region. Only a full chip erase resets
+ * it. Builds without that partition fall back to the main NVS.
+ */
+#define BOOTCTR_PARTITION  "bootctr"
+#define BOOTCTR_NAMESPACE  "boot"
+
+static const char *bootctr_partition(void)
+{
+    static int s_state;  /* 0 = untried, 1 = ready, -1 = unavailable */
+    if (s_state == 0) {
+        esp_err_t err = nvs_flash_init_partition(BOOTCTR_PARTITION);
+        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            nvs_flash_erase_partition(BOOTCTR_PARTITION);
+            err = nvs_flash_init_partition(BOOTCTR_PARTITION);
+        }
+        s_state = (err == ESP_OK) ? 1 : -1;
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "boot_id: no '%s' partition (%s) — storing in main NVS, "
+                          "which is reset on every reflash",
+                     BOOTCTR_PARTITION, esp_err_to_name(err));
+        }
+    }
+    return (s_state == 1) ? BOOTCTR_PARTITION : NULL;
+}
+
+/* boot_id previously stored in the main NVS (firmware before the bootctr
+ * partition), used once to seed the dedicated counter. */
+static bool legacy_boot_id(uint16_t *out)
 {
     nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
+        return false;
+    }
+    bool ok = (nvs_get_u16(h, NVS_KEY_BOOT_ID, out) == ESP_OK);
+    nvs_close(h);
+    return ok;
+}
+
+uint16_t lora_next_boot_id(void)
+{
+    const char *part = bootctr_partition();
+    nvs_handle_t h;
     uint16_t id;
-    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    esp_err_t err = part
+        ? nvs_open_from_partition(part, BOOTCTR_NAMESPACE, NVS_READWRITE, &h)
+        : nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
     if (err != ESP_OK) {
         id = (uint16_t)esp_random();
         ESP_LOGE(TAG, "boot_id: nvs_open failed (%s) — using random %u",
@@ -184,9 +228,12 @@ uint16_t lora_next_boot_id(void)
         return id;
     }
 
-    /* Missing (first boot or erased NVS): start at a random point rather than
-     * 0 so an NVS wipe is unlikely to replay IVs from earlier boots. */
+    /* Missing (first boot or erased flash): continue from a legacy value if
+     * there is one, else start at a random point rather than 0 so a wipe is
+     * unlikely to replay IVs from earlier boots. */
     if (nvs_get_u16(h, NVS_KEY_BOOT_ID, &id) == ESP_OK) {
+        id++;
+    } else if (part && legacy_boot_id(&id)) {
         id++;
     } else {
         id = (uint16_t)esp_random();
