@@ -128,7 +128,7 @@ static void ssd1306_cmd(uint8_t cmd)
     i2c_master_transmit(s_dev, buf, 2, 100);
 }
 
-esp_err_t oled_init(int sda_gpio, int scl_gpio, int rst_gpio)
+esp_err_t oled_init(int sda_gpio, int scl_gpio, int rst_gpio, bool flip)
 {
     /* Hardware reset */
     gpio_config_t rst_cfg = {
@@ -171,8 +171,9 @@ esp_err_t oled_init(int sda_gpio, int scl_gpio, int rst_gpio)
         return err;
     }
 
-    /* SSD1306 init sequence */
-    static const uint8_t init_cmds[] = {
+    /* SSD1306 init sequence. Orientation is set by segment remap (A0/A1)
+     * and COM scan direction (C0/C8); flipping both rotates 180°. */
+    const uint8_t init_cmds[] = {
         0xAE,       /* display off */
         0xD5, 0x80, /* clock div */
         0xA8, 0x3F, /* mux ratio 64 */
@@ -180,8 +181,8 @@ esp_err_t oled_init(int sda_gpio, int scl_gpio, int rst_gpio)
         0x40,       /* start line 0 */
         0x8D, 0x14, /* charge pump enable */
         0x20, 0x00, /* horizontal addressing mode */
-        0xA1,       /* segment remap */
-        0xC8,       /* COM scan decrement */
+        flip ? 0xA1 : 0xA0,   /* segment remap   */
+        flip ? 0xC8 : 0xC0,   /* COM scan direction */
         0xDA, 0x12, /* COM pins */
         0x81, 0xCF, /* contrast */
         0xD9, 0xF1, /* pre-charge */
@@ -196,7 +197,7 @@ esp_err_t oled_init(int sda_gpio, int scl_gpio, int rst_gpio)
 
     oled_clear();
     oled_flush();
-    ESP_LOGI(TAG, "SSD1306 128x64 ready");
+    ESP_LOGI(TAG, "SSD1306 128x64 ready%s", flip ? " (flipped)" : "");
     return ESP_OK;
 }
 

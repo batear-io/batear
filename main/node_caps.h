@@ -34,6 +34,7 @@ typedef struct {
     bool rx;
     bool bridge;
     bool relay;
+    bool oled_flip;   /* not a capability: rotate the OLED 180° (node_cfg oled_flip) */
 } node_caps_t;
 
 /* Resolve capabilities once at boot. Call after nvs_flash_init(). */

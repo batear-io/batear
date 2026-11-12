@@ -203,7 +203,8 @@ function writeNamespaceEntry(page, entryIdx, name, nsIdx) {
   return entryIdx + 1;
 }
 
-/** caps: { mic, rx, bridge, relay? } with values 0 = off, 1 = on, 2 = auto. */
+/** caps: { mic, rx, bridge, relay?, oledFlip? } — caps 0 = off, 1 = on, 2 = auto;
+ *  oledFlip 0/1 rotates the OLED 180°. */
 function writeNodeCaps(page, entryIdx, caps) {
   let idx = writeNamespaceEntry(page, entryIdx, "node_cfg", NS_NODE_CFG);
   idx = writeU8Entry(page, idx, NS_NODE_CFG, "cap_mic", caps.mic);
@@ -211,6 +212,9 @@ function writeNodeCaps(page, entryIdx, caps) {
   idx = writeU8Entry(page, idx, NS_NODE_CFG, "cap_bridge", caps.bridge);
   if (caps.relay !== undefined) {
     idx = writeU8Entry(page, idx, NS_NODE_CFG, "cap_relay", caps.relay);
+  }
+  if (caps.oledFlip !== undefined) {
+    idx = writeU8Entry(page, idx, NS_NODE_CFG, "oled_flip", caps.oledFlip);
   }
   return idx;
 }

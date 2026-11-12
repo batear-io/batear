@@ -175,6 +175,7 @@ batear>
 | `cap_rx` | `off` / `on` / `auto` | `set cap_rx on` | `node_cfg` |
 | `cap_bridge` | `off` / `on` / `auto` | `set cap_bridge auto` | `node_cfg` |
 | `cap_relay` | `off` / `on` | `set cap_relay on` | `node_cfg` |
+| `oled_flip` | `off` / `on` | `set oled_flip on` | `node_cfg` |
 
 !!! note "Node capabilities"
     Detector and gateway builds are the same LoRa node image; what a node does is resolved at boot:
@@ -183,6 +184,8 @@ batear>
     - `cap_rx` — keep the radio listening and show received events on the OLED + LED. `auto` = on when there is no mic. Listening draws ~10–15 mA, so leave it off on battery nodes.
     - `cap_bridge` — publish received events to MQTT over Wi-Fi (implies `cap_rx`). `auto` = on when `wifi_ssid` is set.
     - `cap_relay` — re-transmit other nodes' packets so detectors out of range of a bridge still reach it (implies `cap_rx`). Off by default, including `auto`; enable only on mains-powered nodes. See [protocol → Mesh relay](protocol.md#mesh-relay).
+
+    `oled_flip` rotates the OLED 180°. v3.0 rotated the default orientation; set `oled_flip on` (or tick *Rotate display 180°* in the web flasher) if the display is upside down for how your board is mounted.
 
     Unset keys fall back to the build preset: detector = mic on / rx off / bridge off; gateway = mic off / rx on / bridge auto. Reboot after changing them.
 

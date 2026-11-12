@@ -72,6 +72,14 @@ menu "Node capability defaults (overridden by NVS node_cfg)"
         default 0 if BATEAR_ROLE_DETECTOR
         default 2
 
+    config BATEAR_OLED_FLIP
+        bool "Rotate the OLED 180 degrees (pre-v3.0 orientation)"
+        default n
+        help
+            Default for NVS node_cfg "oled_flip". v3.0 rotated the default
+            OLED orientation by 180 degrees; enable this (or
+            `set oled_flip on` on the serial console) to get the old one.
+
     config BATEAR_CAP_RELAY_DEFAULT
         int "Mesh relay: 0=off 1=on (2=auto is treated as off)"
         range 0 2
