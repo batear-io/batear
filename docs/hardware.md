@@ -9,10 +9,14 @@
 
 ### Enclosure (3D-printable)
 
-A community-designed 3D-printable case for the **Heltec WiFi LoRa 32 V3** detector is available — thanks to [Nelson Hsu (@nelson8588x2)](https://github.com/nelson8588x2):
+[![Two Batear cases, one black and one white, on a mossy log; the white one shows the OLED through its window](assets/batear-case.jpg){ width="360" align="right" }](https://makerworld.com/en/models/3581398-batear-case){ target="_blank" }
+
+A community-designed 3D-printable case for the **Heltec WiFi LoRa 32 V3** is available — thanks to [Nelson Hsu (@nelson8588x2)](https://github.com/nelson8588x2). Download it and print your own:
 
 - **MakerWorld** (print profiles): [Batear Case](https://makerworld.com/en/models/3581398-batear-case)
 - **GitHub** (STEP source files): [nelson8588x2/batear-case](https://github.com/nelson8588x2/batear-case)
+
+<div style="clear:both"></div>
 
 ### Wiring (ICS-43434 / INMP441 → Heltec V3 / V4)
 
