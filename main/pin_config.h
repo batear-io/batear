@@ -59,6 +59,9 @@
 #define BOARD_HAS_VEXT   1
 #define BOARD_HAS_OLED   1
 
+/* PRG button (also the boot strap pin): long press powers the node off */
+#define PIN_USER_BUTTON  0
+
 /* No on-board SD card on Heltec V3/V4 */
 #define BOARD_HAS_SDMMC  0
 

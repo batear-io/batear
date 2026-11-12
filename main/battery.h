@@ -30,6 +30,9 @@ void battery_init(void);
  */
 uint32_t battery_read_mv(void);
 
+/* Disconnect the divider and hold the control pin through deep sleep. */
+void battery_prepare_sleep(void);
+
 #ifdef __cplusplus
 }
 #endif

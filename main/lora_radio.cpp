@@ -95,6 +95,8 @@ static bool s_tx_enabled = false;
 static bool s_rx_enabled = false;
 static bool s_relay_enabled = false;
 static SemaphoreHandle_t s_rx_sem = nullptr;
+static SemaphoreHandle_t s_sleep_req  = xSemaphoreCreateBinary();
+static SemaphoreHandle_t s_sleep_done = xSemaphoreCreateBinary();
 
 static uint16_t s_boot_id = 0;
 static uint16_t s_tx_seq = 0;
@@ -510,6 +512,7 @@ extern "C" void LoRaTask(void *pvParameters)
         s_rx_sem = xSemaphoreCreateBinary();
         xQueueAddToSet(s_rx_sem, set);
     }
+    xQueueAddToSet(s_sleep_req, set);
 
     s_boot_ms = (uint32_t)((uint64_t)esp_timer_get_time() / 1000ULL);
     parse_fw_version();
@@ -589,7 +592,16 @@ extern "C" void LoRaTask(void *pvParameters)
 
         QueueSetMemberHandle_t ready = xQueueSelectFromSet(set, wait);
 
-        if (s_rx_enabled && ready == s_rx_sem) {
+        if (ready == s_sleep_req) {
+            xSemaphoreTake(s_sleep_req, 0);
+            if (s_rx_enabled) {
+                s_radio->clearPacketReceivedAction();
+            }
+            lora_sleep();
+            ESP_LOGI(TAG, "radio asleep for power-off");
+            xSemaphoreGive(s_sleep_done);
+            vTaskSuspend(NULL);
+        } else if (s_rx_enabled && ready == s_rx_sem) {
             xSemaphoreTake(s_rx_sem, 0);
             receive_frame(rx_errors);
         } else if (s_tx_enabled && ready == g_drone_event_queue) {
@@ -599,4 +611,10 @@ extern "C" void LoRaTask(void *pvParameters)
             hb_deadline = xTaskGetTickCount() + pdMS_TO_TICKS(heartbeat_next_ms());
         }
     }
+}
+
+extern "C" bool lora_radio_sleep(uint32_t timeout_ms)
+{
+    xSemaphoreGive(s_sleep_req);
+    return xSemaphoreTake(s_sleep_done, pdMS_TO_TICKS(timeout_ms)) == pdTRUE;
 }

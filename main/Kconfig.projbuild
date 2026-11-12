@@ -82,6 +82,16 @@ menu "Node capability defaults (overridden by NVS node_cfg)"
 
 endmenu
 
+config BATEAR_POWER_OFF_HOLD_S
+    int "Hold the PRG button this many seconds to power off (0 = disabled)"
+    default 3
+    range 0 10
+    depends on BATEAR_LORA_NODE
+    help
+        Heltec V3/V4 have no power switch: a long press puts the node in deep
+        sleep with the radio, OLED, LED and battery divider off. Press the
+        button again to turn it back on (the board reboots).
+
 menu "Mesh relay"
     depends on BATEAR_LORA_NODE
 

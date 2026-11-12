@@ -31,6 +31,7 @@
 #include "lora_radio.h"
 #include "mqtt_task.h"
 #include "node_caps.h"
+#include "power_button.h"
 #endif
 
 #ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR
@@ -48,6 +49,10 @@ QueueHandle_t g_drone_event_queue = NULL;
 
 extern "C" void app_main(void)
 {
+#if defined(CONFIG_BATEAR_LORA_NODE) && CONFIG_BATEAR_POWER_OFF_HOLD_S > 0
+    power_button_boot();
+#endif
+
     {
         esp_err_t nret = nvs_flash_init();
         if (nret == ESP_ERR_NVS_NO_FREE_PAGES || nret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -117,6 +122,12 @@ extern "C" void app_main(void)
             ESP_LOGE(TAG, "MqttTask create failed");
         }
     }
+
+#if CONFIG_BATEAR_POWER_OFF_HOLD_S > 0
+    xTaskCreatePinnedToCore(PowerButtonTask, "PowerButton",
+                            3 * 1024 / sizeof(StackType_t),
+                            NULL, tskIDLE_PRIORITY + 1, NULL, 0);
+#endif
 
     ESP_LOGI(TAG, "Node running — LoRaTask(Core0)%s%s",
              caps->mic ? " + AudioTask(Core1)" : "",
