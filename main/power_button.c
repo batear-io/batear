@@ -111,6 +111,11 @@ void PowerButtonTask(void *pvParameters)
 {
     (void)pvParameters;
 
+    if (CONFIG_BATEAR_POWER_OFF_HOLD_S == 0) {
+        vTaskDelete(NULL);
+        return;
+    }
+
     gpio_config_t cfg = {
         .pin_bit_mask = 1ULL << PIN_USER_BUTTON,
         .mode         = GPIO_MODE_INPUT,

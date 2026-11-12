@@ -49,7 +49,7 @@ QueueHandle_t g_drone_event_queue = NULL;
 
 extern "C" void app_main(void)
 {
-#if defined(CONFIG_BATEAR_LORA_NODE) && CONFIG_BATEAR_POWER_OFF_HOLD_S > 0
+#ifdef CONFIG_BATEAR_LORA_NODE
     power_button_boot();
 #endif
 
@@ -123,11 +123,9 @@ extern "C" void app_main(void)
         }
     }
 
-#if CONFIG_BATEAR_POWER_OFF_HOLD_S > 0
     xTaskCreatePinnedToCore(PowerButtonTask, "PowerButton",
                             3 * 1024 / sizeof(StackType_t),
                             NULL, tskIDLE_PRIORITY + 1, NULL, 0);
-#endif
 
     ESP_LOGI(TAG, "Node running — LoRaTask(Core0)%s%s",
              caps->mic ? " + AudioTask(Core1)" : "",
