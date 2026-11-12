@@ -95,6 +95,12 @@ The wired detector connects directly to your network via Ethernet (RJ45). If you
 
 No external wiring needed — everything is on-board.
 
+## Power button (Heltec LoRa nodes)
+
+Hold the **PRG** button for 3 seconds to power a LoRa node off — the OLED shows *Power off: release* (or the LED blinks three times on boards without the display in use); release the button and the board goes dark. Press **PRG** again to turn it back on; it reboots and rejoins the network.
+
+The Heltec boards have no power switch, so "off" is ESP32 deep sleep with the LoRa radio asleep and the OLED, LED and battery divider switched off. Unplug the battery for storage. The hold time is `BATEAR_POWER_OFF_HOLD_S` in menuconfig (`0` disables it).
+
 ## Relay
 
 Same board as the gateway, no Wi-Fi needed. A relay listens continuously (~10–15 mA on top of the ESP32-S3), so power it from USB or another mains supply rather than a battery. Put it where it can hear the far detectors and reach a gateway — e.g. high up, halfway between them.

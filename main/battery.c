@@ -162,9 +162,16 @@ uint32_t battery_read_mv(void)
     return (uint32_t)(vbat_mv + 0.5f);
 }
 
+void battery_prepare_sleep(void)
+{
+    gpio_set_level((gpio_num_t)PIN_VBAT_CTRL, VBAT_CTRL_DISCONNECT);
+    gpio_hold_en((gpio_num_t)PIN_VBAT_CTRL);
+}
+
 #else /* !BOARD_HAS_VBAT */
 
 void     battery_init(void)    { }
+void     battery_prepare_sleep(void) { }
 uint32_t battery_read_mv(void) { return 0; }
 
 #endif /* BOARD_HAS_VBAT */
