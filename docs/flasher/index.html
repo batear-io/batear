@@ -349,6 +349,12 @@
             <input type="checkbox" id="capRx">
             <span><strong>Show received events on the OLED</strong><small id="capRxNote">Listen for other nodes and show their alarms on the display and LED.</small></span>
           </label>
+          <div class="cap-body">
+            <label class="static-ip-toggle">
+              <input type="checkbox" id="capFlip">
+              Rotate display 180&deg; (v3.0+; the pre-v3.0 orientation)
+            </label>
+          </div>
         </div>
         <div class="key-status default-key" id="capWarn" style="display:none"><span></span></div>
       </div>
@@ -645,6 +651,7 @@
     const capRx        = document.getElementById("capRx");
     const capRxNote    = document.getElementById("capRxNote");
     const capWarn      = document.getElementById("capWarn");
+    const capFlip      = document.getElementById("capFlip");
     const capBoxes     = { mic: "capMicBox", bridge: "capBridgeBox", relay: "capRelayBox", rx: "capRxBox" };
 
     const gwWifiSsid   = document.getElementById("gwWifiSsid");
@@ -744,7 +751,7 @@
       });
     });
     capRx.addEventListener("change", () => { rxChoice = capRx.checked; validateAndUpdate(); });
-    for (const el of [capMic, capBridge, capRelay]) el.addEventListener("change", validateAndUpdate);
+    for (const el of [capMic, capBridge, capRelay, capFlip]) el.addEventListener("change", validateAndUpdate);
 
     staticIpEnable.addEventListener("change", () => {
       staticIpFields.classList.toggle("visible", staticIpEnable.checked);
@@ -879,6 +886,7 @@
         fwName = f.fw;
         label = nodeLabel(c);
         const caps = { mic: +c.mic, rx: +c.rx, bridge: +c.bridge, relay: +c.relay };
+        if (c.rx) caps.oledFlip = +capFlip.checked;
         const devId = c.mic ? getDetDeviceId() : null;
         const gwCfg = c.bridge ? getGwConfig() : null;
         needsPatch = true;

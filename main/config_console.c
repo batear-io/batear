@@ -201,6 +201,7 @@ static int cmd_show(int argc, char **argv)
             print_nvs_u8(h, "cap_rx", "cap_rx");
             print_nvs_u8(h, "cap_bridge", "cap_bridge");
             print_nvs_u8(h, "cap_relay", "cap_relay");
+            print_nvs_u8(h, "oled_flip", "oled_flip");
             nvs_close(h);
         } else {
             printf("  (namespace not found — using Kconfig defaults)\n");
@@ -211,6 +212,11 @@ static int cmd_show(int argc, char **argv)
     printf("    cap_rx     = %d\n", CONFIG_BATEAR_CAP_RX_DEFAULT);
     printf("    cap_bridge = %d\n", CONFIG_BATEAR_CAP_BRIDGE_DEFAULT);
     printf("    cap_relay  = %d\n", CONFIG_BATEAR_CAP_RELAY_DEFAULT);
+#if CONFIG_BATEAR_OLED_FLIP
+    printf("    oled_flip  = 1\n");
+#else
+    printf("    oled_flip  = 0\n");
+#endif
 #endif
 
 #ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR
@@ -370,6 +376,7 @@ static int cmd_set(int argc, char **argv)
         printf("  mqtt_pass   — MQTT password\n");
         printf("  mqtt_device_id — gateway ID for MQTT topics\n");
         printf("  cap_mic / cap_rx / cap_bridge / cap_relay — off | on | auto\n");
+        printf("  oled_flip   — on | off (rotate the OLED 180°)\n");
 #endif
 #ifdef CONFIG_BATEAR_ROLE_WIRED_DETECTOR
         printf("  mqtt_url    — e.g. mqtt://192.168.1.100:1883\n");
@@ -460,6 +467,17 @@ static int cmd_set(int argc, char **argv)
             return 1;
         }
         return set_nvs_u8("node_cfg", key, v);
+    }
+
+    if (strcmp(key, "oled_flip") == 0) {
+        if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0) {
+            return set_nvs_u8("node_cfg", "oled_flip", 1);
+        }
+        if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0) {
+            return set_nvs_u8("node_cfg", "oled_flip", 0);
+        }
+        printf("Error: oled_flip must be on or off\n");
+        return 1;
     }
 #endif
 

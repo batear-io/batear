@@ -51,6 +51,15 @@ void node_caps_init(void)
     uint8_t rx     = load_cap(h, opened, "cap_rx",     CONFIG_BATEAR_CAP_RX_DEFAULT);
     uint8_t bridge = load_cap(h, opened, "cap_bridge", CONFIG_BATEAR_CAP_BRIDGE_DEFAULT);
     uint8_t relay  = load_cap(h, opened, "cap_relay",  CONFIG_BATEAR_CAP_RELAY_DEFAULT);
+    uint8_t flip;
+    if (!opened || nvs_get_u8(h, "oled_flip", &flip) != ESP_OK) {
+#if CONFIG_BATEAR_OLED_FLIP
+        flip = 1;
+#else
+        flip = 0;
+#endif
+    }
+    s_caps.oled_flip = (flip != 0);
     if (opened) {
         nvs_close(h);
     }

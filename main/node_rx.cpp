@@ -66,7 +66,7 @@ static void print_status_line(void)
 static void display_idle(void)
 {
     oled_clear();
-    oled_print(0, 0, "BATEAR GATEWAY");
+    oled_print(0, 0, "BATEAR");
     oled_print(0, 2, "Listening...");
     print_status_line();
     oled_flush();
@@ -86,7 +86,7 @@ static void display_event(const lora_plaintext_t *pt, float rssi, float snr)
 {
     char line[32];
     oled_clear();
-    oled_print(0, 0, "BATEAR GATEWAY");
+    oled_print(0, 0, "BATEAR");
 
     snprintf(line, sizeof(line), "Dev %02X: %s",
              pt->device_id, event_label(pt->event_type));
@@ -194,7 +194,7 @@ extern "C" void node_rx_init(void)
     vTaskDelay(pdMS_TO_TICKS(50));
 #endif
 
-    oled_init(PIN_OLED_SDA, PIN_OLED_SCL, PIN_OLED_RST);
+    oled_init(PIN_OLED_SDA, PIN_OLED_SCL, PIN_OLED_RST, node_caps()->oled_flip);
 
     gpio_config_t led_cfg = {};
     led_cfg.pin_bit_mask = (1ULL << PIN_LED);
