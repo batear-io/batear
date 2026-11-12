@@ -97,3 +97,16 @@ One **LoRa node** firmware runs as a **Detector** (mic + LoRa TX), a **Relay** (
     [:octicons-arrow-right-24: How It Works](how-it-works.md)
 
 </div>
+
+## 3D-Printable Case
+
+<div align="center" markdown>
+
+[![Two Batear cases, one black and one white, on a mossy log; the white one shows the OLED through its window](assets/batear-case.jpg){ width="420" }](https://makerworld.com/en/models/3581398-batear-case){ target="_blank" }
+
+</div>
+
+Give your node a proper home. This community-designed enclosure for the **Heltec WiFi LoRa 32 V3** by [@nelson8588x2](https://github.com/nelson8588x2) has a window for the OLED and access to the buttons — **download the model and print your own:**
+
+[:material-printer-3d: Download on MakerWorld](https://makerworld.com/en/models/3581398-batear-case){ .md-button .md-button--primary target="_blank" }
+[:material-github: STEP files on GitHub](https://github.com/nelson8588x2/batear-case){ .md-button target="_blank" }

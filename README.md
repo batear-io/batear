@@ -80,7 +80,16 @@ Stop checking serial monitors. Batear brings drone detection directly to your da
 
 ## 🧩 3D-Printable Case
 
-A community-designed enclosure for the **Heltec WiFi LoRa 32 V3** detector by [@nelson8588x2](https://github.com/nelson8588x2) — print it from [**MakerWorld**](https://makerworld.com/en/models/3581398-batear-case) or grab the STEP files on [**GitHub**](https://github.com/nelson8588x2/batear-case).
+<p align="center">
+  <a href="https://makerworld.com/en/models/3581398-batear-case">
+    <img src="docs/assets/batear-case.jpg" alt="Two Batear cases, one black and one white, on a mossy log; the white one shows the OLED through its window" width="420">
+  </a>
+</p>
+
+Give your node a proper home. This community-designed enclosure for the **Heltec WiFi LoRa 32 V3** by [@nelson8588x2](https://github.com/nelson8588x2) has a window for the OLED and access to the buttons — **download the model and print your own:**
+
+- 🖨️ **[MakerWorld](https://makerworld.com/en/models/3581398-batear-case)** — ready-to-print profiles
+- 📐 **[GitHub](https://github.com/nelson8588x2/batear-case)** — STEP source files to remix
 
 ---
 
