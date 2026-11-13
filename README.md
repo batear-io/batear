@@ -22,6 +22,31 @@
 
 ---
 
+## 🌐 Web Flasher — Zero Install
+
+Flash firmware directly from your browser — no toolchain needed:
+
+**[Open Web Flasher](https://docs.batear.io/flasher/)**
+
+> Requires Chrome or Edge on desktop. Connect a Heltec V3/V4 (Detector, Relay or Gateway) or a LILYGO T-ETH-Lite S3 (Wired Detector) via USB-C and click Install.
+
+---
+
+## 🧩 3D-Printable Case
+
+<p align="center">
+  <a href="https://makerworld.com/en/models/3581398-batear-case">
+    <img src="docs/assets/batear-case.jpg" alt="Two Batear cases, one black and one white, on a mossy log; the white one shows the OLED through its window" width="420">
+  </a>
+</p>
+
+Give your node a proper home. This community-designed enclosure for the **Heltec WiFi LoRa 32 V3** by [@nelson8588x2](https://github.com/nelson8588x2) has a window for the OLED and access to the buttons — **download the model and print your own:**
+
+- 🖨️ **[MakerWorld](https://makerworld.com/en/models/3581398-batear-case)** — ready-to-print profiles
+- 📐 **[GitHub](https://github.com/nelson8588x2/batear-case)** — STEP source files to remix
+
+---
+
 ## 🛡️ Support the Mission (501(c)(3) Tax Deductible)
 
 Batear is officially fiscally hosted by the **Open Source Collective (OSC)**. Your contribution directly supports the deployment of civil defense technology where it is needed most.
@@ -52,16 +77,6 @@ One **LoRa node** firmware runs as a **Detector** (mic + LoRa TX), a **Relay** (
 
 ---
 
-## 🌐 Web Flasher — Zero Install
-
-Flash firmware directly from your browser — no toolchain needed:
-
-**[Open Web Flasher](https://docs.batear.io/flasher/)**
-
-> Requires Chrome or Edge on desktop. Connect a Heltec V3/V4 (Detector, Relay or Gateway) or a LILYGO T-ETH-Lite S3 (Wired Detector) via USB-C and click Install.
-
----
-
 ## 🏠 Smart Home Integration (Home Assistant)
 
 Stop checking serial monitors. Batear brings drone detection directly to your dashboard.
@@ -75,21 +90,6 @@ Stop checking serial monitors. Batear brings drone detection directly to your da
 - **Historical Logs**: Analyze drone activity patterns in your area.
 
 > "Batear bridges the gap between complex signal processing and simple home automation."
-
----
-
-## 🧩 3D-Printable Case
-
-<p align="center">
-  <a href="https://makerworld.com/en/models/3581398-batear-case">
-    <img src="docs/assets/batear-case.jpg" alt="Two Batear cases, one black and one white, on a mossy log; the white one shows the OLED through its window" width="420">
-  </a>
-</p>
-
-Give your node a proper home. This community-designed enclosure for the **Heltec WiFi LoRa 32 V3** by [@nelson8588x2](https://github.com/nelson8588x2) has a window for the OLED and access to the buttons — **download the model and print your own:**
-
-- 🖨️ **[MakerWorld](https://makerworld.com/en/models/3581398-batear-case)** — ready-to-print profiles
-- 📐 **[GitHub](https://github.com/nelson8588x2/batear-case)** — STEP source files to remix
 
 ---
 
