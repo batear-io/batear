@@ -236,3 +236,8 @@ void oled_flush(void)
         i2c_master_transmit(s_dev, buf, sizeof(buf), 100);
     }
 }
+
+void oled_set_power(bool on)
+{
+    ssd1306_cmd(on ? 0xAF : 0xAE);
+}

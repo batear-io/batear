@@ -35,6 +35,10 @@ void node_rx_fatal(const char *msg);
 /* Count a radio-level receive error on the status line. */
 void node_rx_error(void);
 
+/* Light the OLED for its on-time (button press). No-op if the display
+ * was never initialised (rx off). */
+void node_rx_wake_display(void);
+
 #ifdef __cplusplus
 }
 #endif

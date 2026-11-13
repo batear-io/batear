@@ -12,6 +12,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 
@@ -38,16 +39,17 @@ static const char *TAG = "battery";
 #define VBAT_SAMPLES      8
 
 /* ADC_Ctrl (GPIO37) polarity differs between board revisions:
- *   V3 — active LOW:  drive LOW  to connect the divider, HIGH to disconnect.
- *   V4 — active HIGH: drive HIGH to connect the divider, LOW  to disconnect.
- */
+ *   V3.0/3.1 — active LOW:  drive LOW  to connect the divider.
+ *   V3.2, V4 — active HIGH: drive HIGH to connect the divider.
+ * V3 boards don't report their revision, so battery_init() probes both
+ * levels and keeps the one that actually puts VBAT on the ADC pin. */
 #if defined(CONFIG_BATEAR_BOARD_HELTEC_V4)
-#define VBAT_CTRL_CONNECT    1
-#define VBAT_CTRL_DISCONNECT 0
+static int s_ctrl_connect = 1;
 #else
-#define VBAT_CTRL_CONNECT    0
-#define VBAT_CTRL_DISCONNECT 1
+static int s_ctrl_connect = 0;
 #endif
+#define VBAT_CTRL_CONNECT    (s_ctrl_connect)
+#define VBAT_CTRL_DISCONNECT (!s_ctrl_connect)
 
 /* Settle time after enabling the divider before sampling (ms) */
 #ifndef VBAT_SETTLE_MS
@@ -57,6 +59,9 @@ static const char *TAG = "battery";
 static adc_oneshot_unit_handle_t s_adc   = NULL;
 static adc_cali_handle_t         s_cali  = NULL;
 static bool                      s_ready = false;
+/* Serialises reads: the divider is gated per read, so two overlapping
+ * readers (LoRa telemetry + OLED header) would cut each other off. */
+static SemaphoreHandle_t          s_lock  = NULL;
 
 static bool cali_init(void)
 {
@@ -122,9 +127,28 @@ void battery_init(void)
     if (!cali_init()) {
         ESP_LOGW(TAG, "ADC calibration unavailable — readings will be rough");
     }
-    s_ready = true;
-    ESP_LOGI(TAG, "battery monitor ready (adc=GPIO%d ctrl=GPIO%d ratio=%.2f)",
-             PIN_VBAT_ADC, PIN_VBAT_CTRL, (double)BOARD_VBAT_DIVIDER_RATIO);
+    s_lock  = xSemaphoreCreateMutex();
+    s_ready = (s_lock != NULL);
+
+#if !defined(CONFIG_BATEAR_BOARD_HELTEC_V4)
+    /* Wrong polarity leaves the divider open and the pin reads ~0 V. If the
+     * default reads near zero, try the other level and keep whichever is
+     * higher (no battery and no USB → both ~0, default stays). */
+    if (s_ready) {
+        uint32_t mv_default = battery_read_mv();
+        if (mv_default < 1000) {
+            s_ctrl_connect = !s_ctrl_connect;
+            uint32_t mv_flipped = battery_read_mv();
+            if (mv_flipped <= mv_default) {
+                s_ctrl_connect = !s_ctrl_connect;
+            }
+        }
+        gpio_set_level((gpio_num_t)PIN_VBAT_CTRL, VBAT_CTRL_DISCONNECT);
+    }
+#endif
+    ESP_LOGI(TAG, "battery monitor ready (adc=GPIO%d ctrl=GPIO%d active-%s ratio=%.2f)",
+             PIN_VBAT_ADC, PIN_VBAT_CTRL, s_ctrl_connect ? "high" : "low",
+             (double)BOARD_VBAT_DIVIDER_RATIO);
 }
 
 uint32_t battery_read_mv(void)
@@ -132,6 +156,7 @@ uint32_t battery_read_mv(void)
     if (!s_ready) {
         return 0;
     }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
     gpio_set_level((gpio_num_t)PIN_VBAT_CTRL, VBAT_CTRL_CONNECT);
     vTaskDelay(pdMS_TO_TICKS(VBAT_SETTLE_MS));
     uint32_t raw_sum = 0;
@@ -144,6 +169,7 @@ uint32_t battery_read_mv(void)
         }
     }
     gpio_set_level((gpio_num_t)PIN_VBAT_CTRL, VBAT_CTRL_DISCONNECT);
+    xSemaphoreGive(s_lock);
     if (taken == 0) {
         return 0;
     }

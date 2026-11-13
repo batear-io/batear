@@ -16,6 +16,9 @@ esp_err_t oled_init(int sda_gpio, int scl_gpio, int rst_gpio, bool flip);
 void      oled_clear(void);
 void      oled_print(int col, int row, const char *text);
 void      oled_flush(void);
+/* Panel on/off (SSD1306 0xAF/0xAE). The framebuffer and GDDRAM keep
+ * updating while off; turning it back on shows the latest frame. */
+void      oled_set_power(bool on);
 
 #ifdef __cplusplus
 }

@@ -136,6 +136,7 @@ void PowerButtonTask(void *pvParameters)
         if (!pressed()) {
             continue;
         }
+        node_rx_wake_display();   /* any press lights the OLED for 10 s */
         TickType_t start = xTaskGetTickCount();
         while (pressed() && xTaskGetTickCount() - start < hold) {
             vTaskDelay(pdMS_TO_TICKS(POLL_MS));
