@@ -14,10 +14,15 @@
 #include "oled.h"
 #include "mesh.h"
 #include "node_caps.h"
+#include "battery.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/timers.h"
+#include "freertos/semphr.h"
 #include "esp_log.h"
+#include <string.h>
+#include <stdio.h>
 #include "driver/gpio.h"
 
 static const char *TAG = "rx";
@@ -48,6 +53,50 @@ static bool is_fresh(const device_state_t *dev, const lora_header_t *hdr)
 
 /* ---- display helpers ---- */
 
+/* The OLED is lit for OLED_ON_MS at boot and on every ALARM (plus fatal
+ * messages), then turned off. Other events still redraw the framebuffer
+ * so the latest state shows the next time the panel wakes. */
+#define OLED_ON_MS 10000
+static TimerHandle_t s_oled_timer;
+/* Guards the framebuffer: the LoRa task redraws on events while the
+ * power-button task refreshes the header when it wakes the panel. */
+static SemaphoreHandle_t s_disp_mtx;
+
+static void disp_lock(void)   { if (s_disp_mtx) xSemaphoreTake(s_disp_mtx, portMAX_DELAY); }
+static void disp_unlock(void) { if (s_disp_mtx) xSemaphoreGive(s_disp_mtx); }
+
+/* Row 0: "BATEAR" left, this node's own battery voltage right-aligned.
+ * Clears the row first so a shorter reading leaves no stale digits. */
+static void print_header(void)
+{
+    oled_print(0, 0, "                     ");
+    oled_print(0, 0, "BATEAR");
+    uint32_t mv = battery_read_mv();
+    if (mv > 0) {
+        char v[16];
+        snprintf(v, sizeof(v), "%u.%02uV",
+                 (unsigned)(mv / 1000), (unsigned)((mv / 10) % 100));
+        oled_print(21 - (int)strlen(v), 0, v);
+    }
+}
+
+static void oled_sleep_cb(TimerHandle_t)
+{
+    oled_set_power(false);
+}
+
+/* Caller must not hold the display lock. Refreshes the battery reading
+ * so the panel never wakes up showing a stale voltage. */
+static void oled_wake(void)
+{
+    disp_lock();
+    print_header();
+    oled_flush();
+    disp_unlock();
+    oled_set_power(true);
+    if (s_oled_timer) xTimerReset(s_oled_timer, 0);
+}
+
 /* Bottom status line: received, rejected, and relayed (relay nodes only). */
 static void print_status_line(void)
 {
@@ -65,11 +114,13 @@ static void print_status_line(void)
 
 static void display_idle(void)
 {
+    disp_lock();
     oled_clear();
-    oled_print(0, 0, "BATEAR");
+    print_header();
     oled_print(0, 2, "Listening...");
     print_status_line();
     oled_flush();
+    disp_unlock();
 }
 
 static const char *event_label(uint8_t ev)
@@ -85,8 +136,9 @@ static const char *event_label(uint8_t ev)
 static void display_event(const lora_plaintext_t *pt, float rssi, float snr)
 {
     char line[32];
+    disp_lock();
     oled_clear();
-    oled_print(0, 0, "BATEAR");
+    print_header();
 
     snprintf(line, sizeof(line), "Dev %02X: %s",
              pt->device_id, event_label(pt->event_type));
@@ -112,6 +164,7 @@ static void display_event(const lora_plaintext_t *pt, float rssi, float snr)
 
     print_status_line();
     oled_flush();
+    disp_unlock();
 }
 
 static void update_led(void)
@@ -157,6 +210,7 @@ static void deliver(const lora_header_t *hdr, const lora_plaintext_t *pt,
 
     update_led();
     display_event(pt, rssi, snr);
+    if (pt->event_type == LORA_EVENT_ALARM) oled_wake();
 
     if (g_mqtt_event_queue) {
         MqttEvent_t mev = {};
@@ -194,6 +248,7 @@ extern "C" void node_rx_init(void)
     vTaskDelay(pdMS_TO_TICKS(50));
 #endif
 
+    s_disp_mtx = xSemaphoreCreateMutex();
     oled_init(PIN_OLED_SDA, PIN_OLED_SCL, PIN_OLED_RST, node_caps()->oled_flip);
 
     gpio_config_t led_cfg = {};
@@ -203,13 +258,25 @@ extern "C" void node_rx_init(void)
     gpio_set_level((gpio_num_t)PIN_LED, 0);
 
     display_idle();
+
+    s_oled_timer = xTimerCreate("oled_off", pdMS_TO_TICKS(OLED_ON_MS),
+                                pdFALSE, nullptr, oled_sleep_cb);
+    oled_wake();
 }
 
 extern "C" void node_rx_fatal(const char *msg)
 {
+    disp_lock();
     oled_clear();
-    oled_print(0, 0, msg);
+    oled_print(0, 2, msg);
     oled_flush();
+    disp_unlock();
+    oled_wake();
+}
+
+extern "C" void node_rx_wake_display(void)
+{
+    if (s_oled_timer) oled_wake();
 }
 
 extern "C" void node_rx_error(void)
